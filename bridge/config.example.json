@@ -1,0 +1,18 @@
+{
+  "_readme": "Copy to config.json. Keys starting with _ are comments. Restart the bridge after editing: firetvctl restart",
+  "listen_port": 2360,
+  "poll_seconds": 5,
+  "idle_disconnect_minutes": 30,
+  "_allowed_devices": "Optional: list the Fire TV IPs on this job to lock the bridge to them, e.g. [\"192.168.1.50\", \"192.168.1.51\"]",
+  "allowed_devices": [],
+  "_allowed_clients": "Optional: only accept connections from these IPs (the Savant host). Empty = anyone on the LAN.",
+  "allowed_clients": [],
+  "memory_limit_mb": 150,
+  "log_level": "INFO",
+  "_app_aliases": "Add or fix apps here. Name = what you put in the LAUNCH action, value = Android package (find with: firetvctl apps <ip>)",
+  "_app_aliases_example": {"tubi": "com.tubitv"},
+  "app_aliases": {},
+  "_live_tv": "What LIVETV (and a quick double press of Home / the app's TV button) opens: key:<android keycode> or an app alias/package",
+  "live_tv": "key:172",
+  "home_double_press_seconds": 0.6
+}

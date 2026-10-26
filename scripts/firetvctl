@@ -1,0 +1,85 @@
+#!/bin/bash
+# firetvctl - manage Matchstick (the Fire TV bridge) on the Savant host.
+if [ -z "$BASH_VERSION" ]; then exec /bin/bash "$0" "$@"; fi
+set -uo pipefail
+
+DIR="$(cd "$(dirname "$(readlink "$0" 2>/dev/null || echo "$0")")" && pwd)"
+[ -f "$DIR/firetv_bridge.py" ] || DIR="$HOME/matchstick"
+LABEL="com.matchstick.bridge"
+PLIST="/Library/LaunchDaemons/$LABEL.plist"   # system LaunchDaemon, runs as the Savant user
+ADB="$DIR/platform-tools/adb"
+PY="$(command -v python3)"
+PORT="$("$PY" -c "import json;print(json.load(open('$DIR/config.json')).get('listen_port',2360))" 2>/dev/null || echo 2360)"
+
+send() {   # send one protocol line to the bridge and print what comes back for a few seconds
+  "$PY" - "$PORT" "$1" "${2:-3}" <<'EOF'
+import socket, sys, time
+port, line, secs = int(sys.argv[1]), sys.argv[2], float(sys.argv[3])
+try:
+    s = socket.create_connection(("127.0.0.1", port), timeout=3)
+except OSError as e:
+    sys.exit("Bridge not reachable on port %d (%s). Try: firetvctl start" % (port, e))
+s.sendall((line + "\r\n").encode()); s.settimeout(0.3)
+end, buf = time.time() + secs, b""
+while time.time() < end:
+    try:
+        d = s.recv(4096)
+        if not d: break
+        buf += d
+    except socket.timeout:
+        pass
+print(buf.decode(errors="ignore").replace("\r\n", "\n").strip())
+EOF
+}
+
+case "${1:-help}" in
+  status)
+    if pgrep -f "$DIR/firetv_bridge.py" >/dev/null; then
+      echo "Matchstick $("$PY" "$DIR/firetv_bridge.py" --version) - running, port $PORT"
+      send PING 1 | grep -q PONG && echo "Responding: yes" || echo "Responding: NO (check: firetvctl logs)"
+      echo "Paired Fire TVs (adb):"; "$ADB" devices | tail -n +2 | sed '/^$/d;s/^/  /'
+    else
+      echo "Matchstick - stopped"
+    fi ;;
+  start)   sudo launchctl bootstrap system "$PLIST" 2>/dev/null; sleep 2; "$0" status ;;
+  stop)    sudo launchctl bootout "system/$LABEL" 2>/dev/null; echo "stopped" ;;
+  restart) sudo launchctl kickstart -k "system/$LABEL"; sleep 2; "$0" status ;;
+  logs)    tail -n "${2:-50}" -f "$DIR/logs/firetv_bridge.log" ;;
+  pair)
+    IP="${2:?usage: firetvctl pair <fire-tv-ip>}"
+    echo "Connecting to $IP:5555 ..."
+    "$ADB" connect "$IP:5555"
+    echo "On the TV choose 'Always allow from this computer' then OK. Waiting up to 60s..."
+    for i in $(seq 1 30); do
+      ST="$("$ADB" devices | awk -v s="$IP:5555" '$1==s{print $2}')"
+      if [ "$ST" = "device" ]; then
+        echo "Paired. Model: $("$ADB" -s "$IP:5555" shell getprop ro.product.model | tr -d '\r')"
+        exit 0
+      fi
+      [ -z "$ST" ] && "$ADB" connect "$IP:5555" >/dev/null 2>&1
+      sleep 2
+    done
+    echo "Not paired (state: ${ST:-no connection}). Check ADB debugging is ON and the TV is awake."; exit 1 ;;
+  apps)
+    IP="${2:?usage: firetvctl apps <fire-tv-ip>}"
+    "$ADB" connect "$IP:5555" >/dev/null
+    echo "Apps installed on $IP (LAUNCH takes the package name, or add an alias in config.json):"
+    "$ADB" -s "$IP:5555" shell pm list packages -3 | tr -d '\r' | sed 's/^package:/  /' | sort
+    echo "Built-in aliases: netflix primevideo youtube youtubetv disneyplus hulu max appletv paramountplus peacock plex spotify pluto sling kodi settings" ;;
+  test)
+    shift; [ $# -ge 2 ] || { echo "usage: firetvctl test <fire-tv-ip> <COMMAND> [arg]   e.g. firetvctl test 192.168.1.50 HOME"; exit 1; }
+    IP="$1"; CMD="$(echo "$2" | tr a-z A-Z)"; shift 2
+    send "$CMD $IP $*" 4 ;;
+  version) "$PY" "$DIR/firetv_bridge.py" --version ;;
+  *)
+    cat <<EOF
+firetvctl - Matchstick, the Fire TV bridge for Savant
+  status                  is it running, which Fire TVs are paired
+  start | stop | restart  control the service (asks for your password)
+  logs [lines]            follow the log (Ctrl-C to quit)
+  pair <ip>               approve this host on a Fire TV (do once per Fire TV)
+  apps <ip>               list installed app package names
+  test <ip> <CMD> [arg]   send a command, e.g.  test 192.168.1.50 LAUNCH netflix
+  version
+EOF
+esac
