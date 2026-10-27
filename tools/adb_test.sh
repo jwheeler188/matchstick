@@ -25,6 +25,13 @@ echo "== adb: $ADB ($("$ADB" version | head -1))"
 
 # --- pair (first time shows 'Allow USB debugging?' on the TV)
 SER="$IP:5555"
+if bridge_answers; then
+  # The service holds the Fire TV's one ADB connection through its relay: go through it too.
+  python3 -c 'import socket,sys; socket.create_connection(("127.0.0.1",int(sys.argv[1])),3).sendall(("DISCOVER %s\r\n"%sys.argv[2]).encode())' "$MS_PORT" "$IP"
+  sleep 3
+  INST="$(dirname "$(readlink /usr/local/bin/firetvctl 2>/dev/null || echo ~/matchstick/x)")"
+  SER="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]]["serial"])' "$INST/relays.json" "$IP" 2>/dev/null || echo "$SER")"
+fi
 "$ADB" connect "$SER"
 echo "== If the TV asks 'Allow USB debugging?', tick 'Always allow from this computer' and press OK"
 for i in $(seq 1 30); do

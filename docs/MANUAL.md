@@ -71,7 +71,7 @@ port, or an Ethernet adapter for a stick) is the most reliable.
 3. Enter the Savant user's password when asked. It's needed once, to install the service and to
    add the `firetvctl` shortcut in `/usr/local/bin`.
 
-The installer finishes with `Matchstick 1.4.0 installed and running on port 2360`.
+The installer finishes with `Matchstick 1.4.1 installed and running on port 2360`.
 
 **What it installs:**
 - `~/matchstick/`: the bridge, config, logs, adb, the key helper and `firetvctl`.
@@ -276,6 +276,8 @@ they use the running service; elsewhere they start a temporary bridge.
 | `app_aliases` | `{}` | Extra app names, e.g. `{"tubi": "com.tubitv"}` |
 | `live_tv` | `key:172` | What LiveTV opens: `key:<keycode>` or an app alias/package |
 | `home_double_press_seconds` | 0.6 | Double-press window for Home; 0 turns it off everywhere |
+| `stall_hold_seconds` | 600 | How long to wait for a Fire TV that stops answering before reconnecting |
+| `relay_base_port` | 20000 | First local port for the per-Fire TV ADB relays (host only, `127.0.0.1`) |
 | `log_level` | INFO | DEBUG logs every status poll too |
 
 ## 11. Troubleshooting
@@ -287,7 +289,8 @@ Start with `firetvctl status` and `firetvctl logs`. LAST_ERROR in Savant usually
 | `firetvctl: command not found` | You're on another computer, or the shortcut was skipped. Use `~/matchstick/firetvctl`. |
 | "No route to host" pairing, though ping works | Old install running as a login item: re-run `install.sh` (1.2 and later install a system service). |
 | Pairing says `unauthorized`, no prompt on the TV | Wake the TV and stay on its input. Turn ADB debugging off and on, then `firetvctl pair` again. |
-| ADB stays `OFFLINE` (log shows "shell lost"; `adb devices` shows the Fire TV as `offline`) | Known issue: the Fire TV's ADB service has hung. It accepts each connection and drops it straight away. It often clears on its own (within about an hour in testing), and Matchstick reconnects by itself. To clear it straight away: turn **ADB debugging off and on**, or restart the Fire TV (a Savant-controlled power outlet can automate this). Intermittent; the cause isn't known yet. Note the time in the log for support. A future release will restart ADB on the Fire TV automatically. |
+| LAST_ERROR "Fire TV not answering (asleep or off Wi-Fi?) - waiting for it" | Normal with the TV off: the Fire TV goes quiet on Wi-Fi for a few seconds every few minutes. Matchstick holds the connection and carries on when it answers, usually within 20 s. Commands sent meanwhile are dropped; send them again. |
+| ADB stays `OFFLINE` (log shows "shell lost"; `adb devices` shows the Fire TV as `offline`) | The Fire TV is holding an old ADB connection and refusing new ones. 1.4.1 prevents the usual cause and clears it by itself (LAST_ERROR "Fire TV is holding an old ADB connection - clearing it"). If it stays offline, turn **ADB debugging off and on**, or restart the Fire TV (a Savant-controlled power outlet can automate this). Note the time in the log for support. |
 | `IP netflix not allowed` | Arguments in the wrong order. The Fire TV IP comes first. |
 | Can't drag the profile into Blueprint ("Component not found") | The file was renamed. Use the original file name. |
 | No Device IP Address field in Blueprint | Wire the ETHERNET port to the network switch first. |
@@ -303,7 +306,15 @@ keys fall back to the physical remote's input device (while the remote is connec
 Android's `input` command (0.3 to 1.2 s per press).
 
 **Sleep.** A Fire TV goes to sleep when the TV turns off (HDMI-CEC). Matchstick stays connected,
-and PowerOn wakes it. If a unit keeps dropping off the network while asleep, put it on Ethernet.
+and PowerOn wakes it. While asleep it goes quiet on Wi-Fi for a few seconds every few minutes;
+Matchstick waits these out. If a unit keeps dropping off the network for longer, put it on
+Ethernet.
+
+**ADB relay.** adb on the host reaches each Fire TV through a small relay inside Matchstick
+(`127.0.0.1`, from port 20000), which holds the Fire TV's one ADB connection through quiet spells.
+`firetvctl status` shows it next to the IP. To use `adb` by hand while the service runs, go
+through `firetvctl` (`pair`, `apps`, `test`); connecting straight to `<ip>:5555` from another
+computer is refused while Matchstick holds the connection.
 
 ## 12. Upgrade and uninstall
 

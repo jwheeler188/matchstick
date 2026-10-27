@@ -4,6 +4,7 @@
 
 - ADB recovery: a small companion app on the Fire TV, installed when pairing, that restarts its
   ADB service when it hangs, so the Fire TV comes back without a restart or the ADB toggle.
+  1.4.1 stops the usual cause of the hang; this stays planned as a backstop.
   - Pairing grants it permission to change secure settings; it switches ADB off and on itself,
     the same as the toggle in Developer Options. "Always allow" survives, so the bridge reconnects.
   - It runs from boot, outside ADB, so it keeps running when ADB stops. It acts when it finds ADB
@@ -17,6 +18,38 @@
 - Vega OS support: Fire TVs running Amazon's Vega OS (Linux-based, not Android) instead of Fire
   OS, such as the Fire TV Stick 4K Select. They don't use Android's ADB or key handling, so they
   need their own way to connect, send keys and launch apps. Researching that comes first.
+
+## 1.4.1 (2026-10-27): ADB stays connected
+
+Fixes the Fire TV getting stuck as **OFFLINE** until ADB debugging was turned off and on. No
+profile changes (profile version stays 1.4), so Blueprint needs nothing.
+
+**What was happening**
+- With the TV off, a Fire TV goes quiet on Wi-Fi for a few seconds every few minutes (2 to 40 s
+  in testing). Matchstick took each one as a lost connection and reconnected.
+- The adb server on the host also drops a network device after about 10 s of silence, without
+  telling the Fire TV.
+- The Fire TV allows one ADB connection at a time and kept holding the dropped one, refusing
+  every new connection until it timed the old one out (up to an hour) or ADB was toggled.
+
+**Bridge**
+- Each Fire TV now gets a small relay on the host (`127.0.0.1`, ports from 20000). adb connects
+  through it, so adb's 10-second timeout only ever sees the host itself, and the relay holds the
+  Fire TV's one connection through quiet spells. `firetvctl status` shows the relay next to the IP.
+- When a Fire TV stops answering, Matchstick waits for it (up to `stall_hold_seconds`, 600)
+  instead of reconnecting, and carries on when it answers. Savant shows LAST_ERROR "Fire TV not
+  answering (asleep or off Wi-Fi?) - waiting for it" meanwhile; commands sent then are dropped,
+  not replayed late.
+- If a Fire TV still refuses connections because it's holding an old one, the relay tries to
+  clear it by reconnecting from the old connection's port, which makes the Fire TV drop it.
+  LAST_ERROR says so while it does.
+- New settings: `stall_hold_seconds` (600) and `relay_base_port` (20000).
+- `firetvctl pair` and `apps`, and `tools/adb_test.sh`, go through the relay when the service
+  is running.
+
+**Tested** on a Fire TV Stick 4K (Fire OS 6.7.1.1): a 12-hour overnight run with the TV off
+held 42 quiet spells of up to 19 s with no reconnects and no time OFFLINE, and blocking the
+Fire TV's traffic on the host for 2 minutes recovered by itself within seconds of unblocking.
 
 ## 1.4.0 (2026-10-26): first release
 

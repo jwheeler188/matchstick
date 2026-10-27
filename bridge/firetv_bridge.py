@@ -68,14 +68,16 @@ import resource
 import shlex
 import shutil
 import signal
+import socket
 import struct
 import sys
 import time
 
-VERSION = "1.4.0"
+VERSION = "1.4.1"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(HERE, "config.json")
+RELAYS_FILE = os.path.join(HERE, "relays.json")   # Fire TV IP -> relay serial and recent ports
 
 DEFAULTS = {
     "listen_host": "0.0.0.0",
@@ -84,7 +86,9 @@ DEFAULTS = {
     "adb_port": 5555,
     "poll_seconds": 5,              # status refresh while a Savant component is connected
     "idle_disconnect_minutes": 30,  # drop ADB to a Fire TV nobody has polled in this long
-    "allowed_devices": [],          # empty = any private (LAN) address
+    "stall_hold_seconds": 600,      # a Fire TV that stops answering (asleep, Wi-Fi nap) keeps its
+                                    # connection this long before Matchstick gives up on it
+    "relay_base_port": 20000,       # local ports for the per-Fire TV ADB relays (see Relay)    "allowed_devices": [],          # empty = any private (LAN) address
     "allowed_clients": [],          # empty = anyone who can reach the port
     "memory_limit_mb": 150,         # watchdog: exit (launchd restarts us) above this
     "log_file": os.path.join(HERE, "logs", "firetv_bridge.log"),
@@ -364,13 +368,187 @@ class ADB:
         return "missing"
 
 
+# --------------------------------------------------------------------------- ADB relay
+
+TCP_RXT_CONNDROPTIME = 0x80     # macOS: seconds of unanswered retransmits before TCP gives up
+TCP_USER_TIMEOUT = 18           # the Linux equivalent, in milliseconds
+
+
+def load_relays():
+    try:
+        with open(RELAYS_FILE) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_relays(data):
+    try:
+        tmp = RELAYS_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=1)
+        os.replace(tmp, RELAYS_FILE)
+    except OSError as e:
+        log.debug("relays file not saved: %s", e)
+
+
+class Relay:
+    """Holds the TCP connection to one Fire TV's adbd on adb's behalf.
+
+    adb gives up on a network device after about 10 s without an answer (its own 1-second
+    keepalive), but the Fire TV never hears about it, and a Fire TV's adbd takes one connection
+    at a time: it resets every new one, so the Fire TV stays OFFLINE until ADB debugging is
+    toggled. So adb connects to this relay on 127.0.0.1, where nothing stalls, and the relay
+    holds the Fire TV connection through a nap for up to stall_hold_seconds.
+
+    If the Fire TV still ends up holding a connection this host has dropped, the relay
+    reconnects from that connection's local port: the Fire TV answers the clashing SYN with an
+    ACK, this host answers that with a reset, and the Fire TV drops the stale connection
+    (RFC 5961). Recent ports are kept in relays.json so this works after a restart too."""
+
+    def __init__(self, ip, cfg):
+        self.ip = ip
+        self.target = (ip, cfg["adb_port"])
+        self.hold = int(cfg["stall_hold_seconds"])
+        o = [int(x) for x in ip.split(".")]
+        self.port = cfg["relay_base_port"] + (o[2] % 64) * 256 + o[3]
+        self.recent = list(load_relays().get(ip, {}).get("ports", []))[-4:]
+        self.suspect = False            # the Fire TV reset a new connection straight away
+        self.last_clear = 0.0
+        self.server = None
+
+    @property
+    def serial(self):
+        return "127.0.0.1:%d" % self.port
+
+    async def start(self):
+        try:
+            self.server = await asyncio.start_server(self.handle, "127.0.0.1", self.port)
+        except OSError:
+            self.server = await asyncio.start_server(self.handle, "127.0.0.1", 0)
+            self.port = self.server.sockets[0].getsockname()[1]
+        log.info("%s ADB relay on %s", self.ip, self.serial)
+        self.save()
+
+    async def stop(self):
+        if self.server:
+            self.server.close()
+            await self.server.wait_closed()
+            self.server = None
+
+    def save(self):
+        data = load_relays()
+        data[self.ip] = {"serial": self.serial, "ports": self.recent}
+        save_relays(data)
+
+    def remember(self, port):
+        if port in self.recent:
+            self.recent.remove(port)
+        self.recent = (self.recent + [port])[-4:]
+        self.save()
+
+    def new_socket(self, port=0):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if port and hasattr(socket, "SO_REUSEPORT"):
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+        s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        try:                            # keep retransmitting through a nap instead of giving up
+            if sys.platform == "darwin":
+                s.setsockopt(socket.IPPROTO_TCP, TCP_RXT_CONNDROPTIME, self.hold)
+            else:
+                s.setsockopt(socket.IPPROTO_TCP, TCP_USER_TIMEOUT, self.hold * 1000)
+        except OSError:
+            pass
+        if port:
+            s.bind(("", port))
+        s.setblocking(False)
+        return s
+
+    async def clear_stale(self):
+        """Reconnect from each recent local port so the Fire TV drops a connection we've lost."""
+        self.last_clear = time.monotonic()
+        loop = asyncio.get_event_loop()
+        for port in list(self.recent):
+            try:
+                s = self.new_socket(port)
+            except OSError as e:
+                log.info("%s can't reuse local port %d (%s)", self.ip, port, e)
+                continue
+            try:
+                await asyncio.wait_for(loop.sock_connect(s, self.target), 2)
+                outcome = "connected"
+            except asyncio.TimeoutError:
+                outcome = "no answer"
+            except OSError as e:
+                outcome = e.__class__.__name__
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+            s.close()                   # abort: a reset, not a close handshake
+            log.info("%s cleared old ADB connection from port %d (%s)", self.ip, port, outcome)
+
+    async def handle(self, down_r, down_w):
+        """adb connected to the relay: open the Fire TV connection and pass bytes both ways."""
+        if self.suspect and time.monotonic() - self.last_clear > 20:
+            self.suspect = False
+            await self.clear_stale()
+        loop = asyncio.get_event_loop()
+        s = self.new_socket()
+        try:
+            await asyncio.wait_for(loop.sock_connect(s, self.target), 8)
+        except (OSError, asyncio.TimeoutError) as e:
+            s.close()
+            down_w.close()
+            log.debug("%s relay: can't reach the Fire TV (%s)", self.ip, e.__class__.__name__)
+            return
+        lport = s.getsockname()[1]
+        up_r, up_w = await asyncio.open_connection(sock=s)
+        started, got = time.monotonic(), 0
+
+        async def pump(r, w, from_tv):
+            nonlocal got
+            try:
+                while True:
+                    data = await r.read(65536)
+                    if not data:
+                        return "closed"
+                    if from_tv:
+                        if not got:
+                            self.remember(lport)    # a working connection: worth clearing later
+                        got += len(data)
+                    w.write(data)
+                    await w.drain()
+            except (ConnectionError, OSError) as e:
+                return e.__class__.__name__
+
+        to_tv = asyncio.ensure_future(pump(down_r, up_w, False))
+        from_tv = asyncio.ensure_future(pump(up_r, down_w, True))
+        done, pending = await asyncio.wait({to_tv, from_tv}, return_when=asyncio.FIRST_COMPLETED)
+        for t in pending:
+            t.cancel()
+        if from_tv in done and not got and time.monotonic() - started < 3:
+            self.suspect = True
+            log.warning("%s Fire TV refused a new ADB connection (%s): it may be holding an old one",
+                        self.ip, from_tv.result())
+        else:
+            log.info("%s ADB relay connection from port %d ended by the %s (%s) after %ds", self.ip,
+                     lport, "Fire TV" if from_tv in done else "host",
+                     (from_tv if from_tv in done else to_tv).result(), time.monotonic() - started)
+        for w in (up_w, down_w):
+            try:
+                w.close()
+            except Exception:
+                pass
+
+
 class FireTV:
     """One Fire TV: keeps a persistent `adb shell` open and serialises commands."""
 
     def __init__(self, bridge, ip):
         self.bridge = bridge
         self.ip = ip
-        self.serial = "%s:%d" % (ip, bridge.cfg["adb_port"])
+        self.relay = Relay(ip, bridge.cfg)
+        self.direct_serial = "%s:%d" % (ip, bridge.cfg["adb_port"])   # adb's own name before 1.4.1
+        self.stalled_since = None       # when the Fire TV stopped answering the shell
         self.adb = bridge.adb
         self.queue = asyncio.Queue()
         self.shell = None
@@ -394,6 +572,11 @@ class FireTV:
         self.shell_lock = asyncio.Lock()
         self.worker = asyncio.ensure_future(self.run())
         self.poller = asyncio.ensure_future(self.poll_loop())
+
+    @property
+    def serial(self):
+        """adb's name for this Fire TV: its relay on 127.0.0.1 (see Relay)."""
+        return self.relay.serial
 
     # ---- state ---------------------------------------------------------
     def set(self, key, value):
@@ -434,6 +617,11 @@ class FireTV:
             return False
         self.last_connect_try = now
         await self.close_shell()
+        if not self.relay.server:
+            # A direct connection (older versions, firetvctl pair) would take the Fire TV's only
+            # ADB slot; close it cleanly before the relay connects.
+            await self.adb.run("disconnect", self.direct_serial, timeout=5)
+            await self.relay.start()
         rc, out = await self.adb.run("connect", self.serial, timeout=8)
         log.debug("%s adb connect: %s", self.ip, out)
         st = await self.adb.device_state(self.serial)
@@ -445,6 +633,9 @@ class FireTV:
                 self.set("LAST_ERROR", "Accept 'Allow USB debugging' on the TV (tick Always allow)")
             elif "refused" in out.lower():
                 self.set("LAST_ERROR", "Connection refused - turn on ADB debugging in Developer Options")
+            elif self.relay.suspect or time.monotonic() - self.relay.last_clear < 60:
+                self.set("LAST_ERROR", "Fire TV is holding an old ADB connection - clearing it; "
+                         "if it stays offline, turn ADB debugging off and on")
             elif out:
                 self.set("LAST_ERROR", out.splitlines()[-1][:120])
             # Leave an unauthorized connection open so the approval prompt stays on screen;
@@ -476,7 +667,7 @@ class FireTV:
         async with self.helper_lock:
             if self.helper and self.helper.returncode is None:
                 return
-            if not os.path.exists(HELPER_DEX):
+            if self.stalled_since or not os.path.exists(HELPER_DEX):
                 return
             size = os.path.getsize(HELPER_DEX)
             have = await self.sh("stat -c %%s %s 2>/dev/null" % HELPER_REMOTE) or ""
@@ -508,8 +699,8 @@ class FireTV:
 
     async def helper_keys(self, line):
         """Send one request to the key helper; True when it pressed the keys."""
-        if not self.helper or self.helper.returncode is not None:
-            return False
+        if not self.helper or self.helper.returncode is not None or self.stalled_since:
+            return False                # during a stall, keys are dropped rather than replayed later
         async with self.helper_lock:
             try:
                 self.helper.stdin.write((line + "\n").encode())
@@ -626,6 +817,8 @@ class FireTV:
     async def _sh(self, cmd, timeout):
         if not self.shell or self.shell.returncode is not None:
             return None
+        if self.stalled_since:
+            return None                 # waiting for the Fire TV to answer: send nothing more
         self.marker_n += 1
         marker = "__MATCHSTICK_%d__" % self.marker_n
         try:
@@ -643,14 +836,56 @@ class FireTV:
                         lines.append(pre)
                     return "\n".join(lines)
                 lines.append(line)
-        except (asyncio.TimeoutError, ConnectionError, BrokenPipeError, OSError) as e:
-            log.warning("%s shell lost (%s)", self.ip, e.__class__.__name__)
-            if self.shell:
-                self.shell.kill()
-            self.shell = None
-            self.set("ONLINE", "0")
-            self.set("ADB", "OFFLINE")
+        except asyncio.TimeoutError:
+            # Asleep or a Wi-Fi nap: tearing the connection down here is what leaves the Fire TV
+            # holding a dead one, so hold it and wait for this command's answer instead.
+            self.stalled_since = time.monotonic()
+            log.warning("%s no answer in %ds (%s); holding the connection until it answers",
+                        self.ip, timeout, cmd.split(None, 1)[0])
+            self.set("LAST_ERROR", "Fire TV not answering (asleep or off Wi-Fi?) - waiting for it")
+            asyncio.ensure_future(self.wait_out_stall(marker))
             return None
+        except (ConnectionError, BrokenPipeError, OSError) as e:
+            self.shell_lost(e)
+            return None
+
+    def shell_lost(self, e):
+        log.warning("%s shell lost (%s)", self.ip, e.__class__.__name__)
+        if self.shell:
+            self.shell.kill()
+        self.shell = None
+        self.set("ONLINE", "0")
+        self.set("ADB", "OFFLINE")
+
+    async def wait_out_stall(self, marker):
+        """Read the stalled command's answer whenever it comes; give up after stall_hold_seconds."""
+        hold = self.bridge.cfg["stall_hold_seconds"]
+        shell = self.shell
+        try:
+            while True:
+                left = hold - (time.monotonic() - self.stalled_since)
+                if left <= 0:
+                    raise asyncio.TimeoutError()
+                raw = await asyncio.wait_for(shell.stdout.readline(), left)
+                if not raw:
+                    raise ConnectionError("shell closed")
+                if raw.decode(errors="ignore").rstrip("\r\n").endswith(marker):
+                    break
+        except (asyncio.TimeoutError, ConnectionError, OSError) as e:
+            if isinstance(e, asyncio.TimeoutError):
+                log.warning("%s no answer for %ds; reconnecting", self.ip, hold)
+            else:
+                log.warning("%s connection dropped after %ds without an answer; reconnecting",
+                            self.ip, time.monotonic() - self.stalled_since)
+            self.stalled_since = None
+            if self.shell is shell:
+                self.shell_lost(e)
+            return
+        log.info("%s answering again after %ds", self.ip, time.monotonic() - self.stalled_since)
+        self.stalled_since = None
+        self.set("LAST_ERROR", "")
+        await self.start_helper()       # in case it was stopped during the stall
+        await self.refresh()
 
     # ---- work ------------------------------------------------------------
     async def run(self):
@@ -754,6 +989,8 @@ class FireTV:
         idle = self.bridge.cfg["idle_disconnect_minutes"] * 60
         while True:
             await asyncio.sleep(self.bridge.cfg["poll_seconds"])
+            if self.stalled_since:
+                continue                # wait_out_stall is listening for the Fire TV
             if self.subscribers:
                 self.last_wanted = time.monotonic()
                 if await self.ensure_connected():
@@ -767,6 +1004,7 @@ class FireTV:
         self.poller.cancel()
         await self.close_shell()
         await self.adb.run("disconnect", self.serial, timeout=3)
+        await self.relay.stop()
 
 
 # --------------------------------------------------------------------------- bridge

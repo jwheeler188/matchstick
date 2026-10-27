@@ -5,3 +5,4 @@ logs/
 config.json
 platform-tools/
 platform-tools-latest-darwin.zip
+relays.json
