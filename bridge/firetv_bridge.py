@@ -144,6 +144,11 @@ FOS8_SDK = 30
 SEARCH_FOS8 = "input keyevent 3; sleep 2; input keyevent 19 19 21; sleep 1.5; input keyevent 20"
 ENTER_FOS8 = "input keyevent 22 22 22 22 22 22; sleep 0.5; input keyevent 23"
 CLEAR_FOS8 = "input keyevent 123 " + " ".join(["67"] * 40)
+# The home screen logs each time its search keyboard shows or hides, whichever remote opened it:
+#   TextUpdateRelayV2: Sent search keyboard visibility emission isKeyboardVisible=true ...
+# Matchstick follows that log line (the last one first, for the current state) while connected.
+SEARCH_WATCH_CMD = "logcat -T 1 -v brief TextUpdateRelayV2:I '*:S'"
+SEARCH_NOW_CMD = "logcat -d -v brief TextUpdateRelayV2:I '*:S' | grep isKeyboardVisible= | tail -n1"
 # Keys that leave the search screen (arrows and Select move around its keyboard instead).
 LEAVES_SEARCH = {"HOME", "BACK", "MENU", "SETTINGS", "POWERON", "POWEROFF", "POWERTOGGLE"}
 # Apps that show on the Fire TV home screen, for AvailableApps (package names, and the
@@ -590,6 +595,7 @@ class FireTV:
         self.scancodes = {}             # bridge key name -> Linux scan code
         self.key_method = None          # "print", "sendevent" or None (input keyevent)
         self.helper = None              # key helper process (HELPER_CMD) while it runs
+        self.search_watch = None        # Fire OS 8: SEARCH_WATCH_CMD process while it runs
         self.last_home = 0.0            # time of the last HOME, for double-press = LIVETV
         self.helper_lock = asyncio.Lock()
         self.event_fmt = "<llHHi"       # struct input_event for the stick's word size
@@ -713,6 +719,8 @@ class FireTV:
             if first.strip() == b"ready":
                 self.helper = proc
                 log.info("%s key helper running", self.ip)
+                if self.sdk >= FOS8_SDK:
+                    await self.start_search_watch()
             else:
                 proc.kill()
                 log.warning("%s key helper did not start: %s", self.ip, first.decode(errors="ignore").strip()[:120])
@@ -722,6 +730,43 @@ class FireTV:
             self.helper.kill()
             await self.helper.wait()
         self.helper = None
+        if self.search_watch and self.search_watch.returncode is None:
+            self.search_watch.kill()
+            await self.search_watch.wait()
+        self.search_watch = None
+
+    async def start_search_watch(self):
+        """Fire OS 8: follow the home screen's search keyboard (SEARCH_WATCH_CMD), so the Pro app
+        keyboard pops up however search was opened. Runs with the key helper."""
+        if self.search_watch and self.search_watch.returncode is None:
+            return
+        proc = await asyncio.create_subprocess_exec(
+            self.adb.path, "-s", self.serial, "shell", SEARCH_WATCH_CMD,
+            stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL)
+        self.search_watch = proc
+        asyncio.ensure_future(self.read_search_watch(proc))
+
+    async def check_search(self):
+        """Fire OS 8: read the search keyboard's current state from the log before typing or
+        submitting, in case the watcher hasn't caught up (a bridge that just started). Enter on
+        that keyboard types the focused letter, so this decides which way to submit."""
+        if self.sdk < FOS8_SDK:
+            return
+        out = await self.sh(SEARCH_NOW_CMD) or ""
+        m = re.search(r"isKeyboardVisible=(true|false)", out)
+        if m:
+            self.search_open = m.group(1) == "true"
+
+    async def read_search_watch(self, proc):
+        while True:
+            line = await proc.stdout.readline()
+            if not line:
+                break
+            m = re.search(rb"isKeyboardVisible=(true|false)", line)
+            if m:
+                self.search_open = m.group(1) == b"true"
+                self.set("KeyboardFocused", "true" if self.search_open else "false")
 
     async def helper_keys(self, line):
         """Send one request to the key helper; True when it pressed the keys."""
@@ -980,10 +1025,12 @@ class FireTV:
             elif kind == "SENDTEXT":
                 # Like the Savant Pro app keyboard on Apple TV: the box ends up holding exactly
                 # this text, then it is submitted.
+                await self.check_search()
                 await self.sh(CLEAR_FOS8 if self.search_open else CLEAR_SCRIPT, timeout=10)
                 await self.sh("input text %s" % text_for_input(arg))
                 await self.enter()
             elif kind == "CLEARTEXT":
+                await self.check_search()
                 out = await self.sh(CLEAR_FOS8 if self.search_open else CLEAR_SCRIPT, timeout=10)
                 if out and "NOKEYBOARD" in out:
                     self.set("LAST_ERROR", "CLEARTEXT: no text box on screen")
@@ -1008,6 +1055,7 @@ class FireTV:
         self.bridge.later(1.0, self.refresh)
 
     async def enter(self):
+        await self.check_search()
         if self.search_open:
             await self.sh(ENTER_FOS8, timeout=10)
             self.search_open = False

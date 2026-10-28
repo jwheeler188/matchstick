@@ -39,9 +39,11 @@ Bridge only: profiles unchanged (still version 1.5).
   KeyboardFocused. SENDTEXT and ENTER then submit from the first suggestion, which opens the
   results; CLEARTEXT empties the box. Tested: "stargate" from the Pro app path opened the
   Stargate results page.
-- The search tab's keyboard is part of the home screen, so KeyboardFocused on Fire OS 8 is only
-  true when Matchstick opened search (SEARCH, the Pro app); searching with the Fire TV remote
-  doesn't pop up the Pro app keyboard there.
+- KeyboardFocused on Fire OS 8 follows the search keyboard however search was opened, the Fire
+  TV remote included: the home screen logs each time its search keyboard shows or hides, and
+  Matchstick follows that log line while connected. SENDTEXT, ENTER and CLEARTEXT read the
+  current state first, so a bridge that has just started doesn't press Enter on the keyboard
+  (which types the focused letter, e.g. "stargatea").
 
 ## 1.5.0 (2026-10-27): manual in Blueprint
 
