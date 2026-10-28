@@ -15,9 +15,30 @@
     can restart it.
   - Until then, the fallback without touching the Fire TV is a Savant-controlled power outlet
     or relay on its power supply.
+- Fire OS 8 search and keyboard: open search and detect its text box on Fire OS 8, so the
+  Keyboard profile's text pop-up works there too.
 - Vega OS support: Fire TVs running Amazon's Vega OS (Linux-based, not Android) instead of Fire
   OS, such as the Fire TV Stick 4K Select. They don't use Android's ADB or key handling, so they
   need their own way to connect, send keys and launch apps. Researching that comes first.
+
+## 1.5.1 (2026-10-28): Fire OS 8 status
+
+First test on Fire OS 8 (Fire TV Stick AFTKM, Fire OS 8.1.8.5, Android 11): connecting, keys,
+the key helper, app launch and sleep/wake all work. Two status fixes came out of it. Bridge only:
+profiles unchanged (still version 1.5).
+
+**Bridge**
+- APP_NAME and APP_PACKAGE now work on Fire OS 8. They were never set there, because
+  `dumpsys window windows` prints nothing on Android 11; Matchstick now falls back to
+  `dumpsys window`. The same fix applies to spotting the Fire TV search screen.
+- PLAYBACK only counts the active media player. Apps leave inactive players behind that still
+  say "playing" (YouTube on Fire OS 8), which made PLAYBACK flip between PLAYING and STOPPED,
+  even while the Fire TV was asleep.
+
+**Known issue (Fire OS 8)**
+- The Search key does nothing on Fire OS 8 (search is the magnifier tab on the home screen), so
+  the Keyboard profile's search and KeyboardFocused don't work there yet. Typing into a text box
+  that's already open (TypeText) is unaffected.
 
 ## 1.5.0 (2026-10-27): manual in Blueprint
 

@@ -71,7 +71,7 @@ port, or an Ethernet adapter for a stick) is the most reliable.
 3. Enter the Savant user's password when asked. It's needed once, to install the service and to
    add the `firetvctl` shortcut in `/usr/local/bin`.
 
-The installer finishes with `Matchstick 1.5.0 installed and running on port 2360`.
+The installer finishes with `Matchstick 1.5.1 installed and running on port 2360`.
 
 **What it installs:**
 - `~/matchstick/`: the bridge, config, logs, adb, the key helper and `firetvctl`.
@@ -236,7 +236,8 @@ find its package with `firetvctl apps <ip>` and use the package name, or add an 
 | BRIDGE_VERSION | Matchstick version |
 | KeyboardFocused, PairingState, PairingError, Discovered, AvailableApps | Keyboard profile only: the Apple TV service states the Pro app uses |
 
-Known limits: on Fire OS 6, Fire TV Settings reports APP_NAME as Home. Status refreshes every
+Known limits: on Fire OS 6, Fire TV Settings reports APP_NAME as Home. On Fire OS 8 the Search key
+does nothing, so the Keyboard profile's search and KeyboardFocused don't work there yet. Status refreshes every
 5 seconds and about 1 second after each command.
 
 **What working feedback looks like.** Savant's State Values window, filtered on the component

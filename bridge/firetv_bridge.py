@@ -73,7 +73,7 @@ import struct
 import sys
 import time
 
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(HERE, "config.json")
@@ -108,11 +108,16 @@ KEYS = {
     "POWERON": 224, "POWEROFF": 223, "POWERTOGGLE": 26,
     "SEARCH": 84, "SETTINGS": 176,
 }
+# The window with focus (its line names the app and screen). Fire OS 6 lists it under
+# `dumpsys window windows`; on Fire OS 8 (Android 11) that prints nothing, so fall back to the
+# whole `dumpsys window`.
+FOCUS = ("{ dumpsys window windows 2>/dev/null | grep -m1 -E 'mCurrentFocus|mFocusedApp' || "
+         "dumpsys window 2>/dev/null | grep -m1 -E 'mCurrentFocus|mFocusedApp'; }")
 # The Fire TV search keyboard has no submit key (Enter just presses the highlighted letter),
 # so ENTER there reads the screen and taps the top suggestion, which opens the results page.
 # Suggestions load a moment after typing, so it looks twice. Elsewhere ENTER is the Enter key.
 ENTER_SCRIPT = (
-    "if dumpsys window windows | grep -m1 mCurrentFocus | grep -q TextSearch; then "
+    "if " + FOCUS + " | grep -q TextSearch; then "
     "for t in 1 2; do uiautomator dump /sdcard/matchstick.xml >/dev/null 2>&1; "
     "b=$(grep -o 'resource-id=\"com.amazon.tv.launcher:id/title\"[^>]*bounds=\"[^\"]*\"' /sdcard/matchstick.xml"
     " | head -n1 | sed 's/.*bounds=\"\\[\\([0-9]*\\),\\([0-9]*\\)\\]\\[\\([0-9]*\\),\\([0-9]*\\)\\]\"/\\1 \\2 \\3 \\4/'); "
@@ -122,7 +127,7 @@ ENTER_SCRIPT = (
 )
 # A text box is up when the Fire TV search screen is open (its keyboard is part of the home
 # screen app) or when an app has the on-screen keyboard showing.
-KEYBOARD_TEST = ("{ dumpsys window windows | grep -m1 mCurrentFocus | grep -q TextSearch || "
+KEYBOARD_TEST = ("{ " + FOCUS + " | grep -q TextSearch || "
                  "dumpsys input_method 2>/dev/null | grep -q 'mInputShown=true'; }")
 # Empty the text box: jump to the end, then delete. Only when a text box is up, because
 # Delete on other screens can act like Back.
@@ -199,9 +204,13 @@ FRIENDLY = {
 }
 
 STATUS_SCRIPT = (
-    "dumpsys power | grep -m1 mWakefulness=; "
-    "dumpsys window windows | grep -m1 -E 'mCurrentFocus|mFocusedApp'; "
-    "dumpsys media_session | grep -m1 -E 'state=PlaybackState|state=[0-9]'; "
+    "dumpsys power 2>/dev/null | grep -m1 mWakefulness=; "
+    + FOCUS + "; "
+    # Only an active player's state counts: apps leave inactive sessions behind that still
+    # say playing (seen on Fire OS 8 with YouTube). Each session lists active= before state=.
+    # Plain shell, as older Fire OS has no awk.
+    "dumpsys media_session 2>/dev/null | { a=0; while read -r l; do case \"$l\" in "
+    "active=true*) a=1;; active=*) a=0;; state=*) [ $a = 1 ] && { echo \"$l\"; break; };; esac; done; }; "
     "dumpsys input_method 2>/dev/null | grep -m1 -o 'mInputShown=[a-z]*'"
 )
 
