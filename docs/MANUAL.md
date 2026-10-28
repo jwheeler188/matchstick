@@ -104,7 +104,7 @@ Pairing is stored on the Fire TV and survives reboots. A factory reset clears it
 
 ## 5. Choose a profile
 
-Both profiles are in `profile/`. Use one per Fire TV.
+Both profiles are in `profile/componentProfiles/`. Use one per Fire TV.
 
 | | **Amazon Fire TV (Matchstick)** | **Amazon Fire TV (Matchstick Keyboard)** |
 |---|---|---|
@@ -120,13 +120,21 @@ fullest standard remote.
 
 ## 6. Set up in Blueprint
 
-1. Copy the profile file into your Blueprint custom profiles folder **without renaming it**.
-   Blueprint finds a profile by the file name `<manufacturer>_<model>.xml` in lower case. A
-   renamed file still shows in the component list, but dragging it in fails with
-   "Component not found".
-   Copy its icon too: the `.icns` file from `profile/images/` into the `images` folder beside
-   your custom `componentProfiles` folder, without renaming it. Blueprint picks it up when you
-   add the component.
+1. `profile/` is laid out like Blueprint's custom profiles folder: `componentProfiles`
+   (the profile), `documentation` (this manual, for the component's **Documentation** tab) and
+   `images` (the icon). Copy each file into the folder of the same name in your custom profiles
+   folder, **without renaming any of them**:
+
+   | From `profile/` | To your custom profiles folder |
+   |---|---|
+   | `componentProfiles/amazon_fire tv (matchstick).xml` | `componentProfiles/` |
+   | `documentation/amazon_fire tv (matchstick).htm` | `documentation/` |
+   | `images/amazon_fire tv (matchstick).icns` | `images/` |
+
+   (The same three for the Keyboard profile, `amazon_fire tv (matchstick keyboard)`.)
+   Blueprint finds all three by the profile's file name, `<manufacturer>_<model>` in lower case.
+   A renamed profile still shows in the component list, but dragging it in fails with
+   "Component not found"; a renamed documentation file leaves the Documentation tab greyed out.
 2. Add the component to the design, one per Fire TV.
 3. **Control port:** wire the component's ETHERNET port to your network switch. The **Device IP
    Address** field then appears under Control Ports. Set it to the **Savant host's** IP, or
@@ -312,6 +320,7 @@ Start with `firetvctl status` and `firetvctl logs`. LAST_ERROR in Savant usually
 | `IP netflix not allowed` | Arguments in the wrong order. The Fire TV IP comes first. |
 | Can't drag the profile into Blueprint ("Component not found") | The file was renamed. Use the original file name. |
 | No Device IP Address field in Blueprint | Wire the ETHERNET port to the network switch first. |
+| Documentation tab greyed out on the component | The manual isn't in your custom `documentation` folder under the profile's name. Copy `profile/documentation/<profile name>.htm` there without renaming it (section 6), then close and reopen the component's documentation. |
 | Component shows a "?" instead of the Fire TV icon | The component was added before the icon was in the custom `images` folder, and each design keeps its own copy. Copy the icon into the design's `images` folder (inside the saved `.rpmConfig`) named like the profile with an upper-case `.ICNS`, e.g. `amazon_fire tv (matchstick).ICNS`, then close and reopen the design. Or remove the component and add it again. |
 | Keys feel slow | `firetvctl logs` should show `key helper running` after each connect. If it says the helper didn't start, keys fall back to slower methods; restart the service. |
 | CEC didn't turn the TV on | Fire TV PowerOn wakes the Fire TV; turn the TV on from Savant as usual. |

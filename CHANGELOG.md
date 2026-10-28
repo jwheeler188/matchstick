@@ -47,6 +47,17 @@ profile changes (profile version stays 1.4), so Blueprint needs nothing.
 - `firetvctl pair` and `apps`, and `tools/adb_test.sh`, go through the relay when the service
   is running.
 
+**Profiles**
+- The installer manual now shows on each component's **Documentation** tab in Blueprint (it was
+  greyed out). `profile/` uses Blueprint's library layout: `componentProfiles/` (the profiles),
+  `documentation/` (the manual as `<profile name>.htm`, screenshots included) and `images/` (the
+  icons). Copy each into the same folder of your custom profiles folder. The profiles themselves
+  are unchanged.
+- `generate_profile.py` builds the Documentation tab pages from `docs/MANUAL.md`.
+
+**Manual**
+- Section 8 shows what working state feedback looks like in Savant's State Values window.
+
 **Tested** on a Fire TV Stick 4K (Fire OS 6.7.1.1): a 12-hour overnight run with the TV off
 held 42 quiet spells of up to 19 s with no reconnects and no time OFFLINE, and blocking the
 Fire TV's traffic on the host for 2 minutes recovered by itself within seconds of unblocking.

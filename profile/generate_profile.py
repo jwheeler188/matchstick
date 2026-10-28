@@ -2,8 +2,11 @@
 """
 Generates the Savant Blueprint component profile for Matchstick, the Fire TV bridge.
 
-    python3 generate_profile.py      -> writes "amazon_fire tv (matchstick).xml"
-                                        and "amazon_fire tv (matchstick keyboard).xml" (Pro app text entry)
+    python3 generate_profile.py      -> writes, in Blueprint's library layout (as in Savant's own library):
+                                        componentProfiles/"amazon_fire tv (matchstick).xml"
+                                        componentProfiles/"amazon_fire tv (matchstick keyboard).xml" (Pro app text entry)
+                                        documentation/<same names>.htm (Documentation tab, built from docs/MANUAL.md)
+                                        (images/<same names>.icns, the icons, are kept as they are)
 
 Blueprint finds a profile's file by its name, "<manufacturer>_<model>.xml" in lower case
 (like Savant's "apple_apple tv (atv-bridge).xml"). Any other file name shows in the
@@ -29,11 +32,20 @@ Structure follows Savant's own Roku IP profile (Media_server):
 TCP framing, status parsers, the user-editable IP state variable and
 execute_on_schedule come from the Unique Weather Bridge profile.
 """
+import base64
+import html as htmllib
+import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from xml.sax.saxutils import escape
 
 HERE = Path(__file__).resolve().parent
+# Blueprint's library layout: a component's Documentation tab shows documentation/<profile name>.htm
+# and its icon is images/<profile name>.icns, both looked up by the profile's file name.
+PROFILES = HERE / "componentProfiles"
+DOCS = HERE / "documentation"
 sys.path.insert(0, str(HERE.parent / "bridge"))
 from firetv_bridge import VERSION, BUILTIN_APPS, FRIENDLY  # noqa: E402
 
@@ -332,9 +344,192 @@ def build(v):
         "</component>",
         "",
     ])
-    out = HERE / f"{MANUFACTURER}_{v['model']}.xml".lower()
+    out = PROFILES / f"{MANUFACTURER}_{v['model']}.xml".lower()
+    out.parent.mkdir(exist_ok=True)
     out.write_text(xml, encoding="utf-8")
     print(f"wrote {out.name}: {len(res)} service actions, {len(cus)} custom actions, {len(states_list)} states")
+    docs_html(v, out.with_suffix(".htm").name)
+
+
+# ---------------------------------------------------------------------------------------------
+# Documentation tab: the installer manual (docs/MANUAL.md) as one self-contained page, converted
+# by the small Markdown converter below, which covers only what the manual uses (the same one as
+# OpenWx's). Screenshots are embedded as data: URIs. The page is ASCII: other characters become
+# &#...; references.
+
+ROOT = HERE.parent
+MANUAL = ROOT / "docs" / "MANUAL.md"
+WEB_IMAGES = ROOT / "docs" / "images" / "web"
+DOC_IMAGE_WIDTH = 900  # px; screenshots are scaled down to this for the embedded copies
+IMG_TAG = re.compile(r'<img\s+src="([^"]+)"[^>]*?(?:alt="([^"]*)")?[^>]*>')
+
+
+def doc_image(src):
+    """data: URI for a manual image (a path relative to docs/). On macOS, sips makes a smaller
+    JPEG copy in docs/images/web/ (committed, so other platforms reuse it); otherwise the
+    original file is embedded."""
+    orig = MANUAL.parent / src
+    web = WEB_IMAGES / (orig.stem + ".jpg")
+    if shutil.which("sips") and (not web.exists() or web.stat().st_mtime < orig.stat().st_mtime):
+        web.parent.mkdir(exist_ok=True)
+        subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "70",
+                        "--resampleWidth", str(DOC_IMAGE_WIDTH), str(orig), "--out", str(web)],
+                       check=True, stdout=subprocess.DEVNULL)
+    f = web if web.exists() else orig
+    mime = "image/jpeg" if f.suffix in (".jpg", ".jpeg") else "image/png"
+    return f"data:{mime};base64," + base64.b64encode(f.read_bytes()).decode("ascii")
+
+
+def slug(text):
+    """GitHub's heading anchors, so the manual's table-of-contents links work unchanged."""
+    text = re.sub(r"<[^>]+>", "", text).lower()
+    return re.sub(r"[^\w\- ]", "", text).replace(" ", "-")
+
+
+def inline(text):
+    codes = []
+
+    def keep(m):
+        codes.append(f"<code>{htmllib.escape(m.group(1), quote=False)}</code>")
+        return f"\x00{len(codes) - 1}\x00"
+
+    text = re.sub(r"`([^`]+)`", keep, text)
+    text = htmllib.escape(text, quote=False)
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+    text = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?!\w)", r"<i>\1</i>", text)
+    return re.sub(r"\x00(\d+)\x00", lambda m: codes[int(m.group(1))], text)
+
+
+def cells(row):
+    row = row.strip().strip("|")
+    return [c.strip().replace("\\|", "|") for c in re.split(r"(?<!\\)\|", row)]
+
+
+LIST_ITEM = re.compile(r"^(\s*)([-*]|\d+\.)\s+")
+
+
+def md_blocks(lines):
+    out, i = [], 0
+    while i < len(lines):
+        line, s = lines[i], lines[i].strip()
+        if not s:
+            i += 1
+        elif s.startswith("```"):
+            pad = len(line) - len(line.lstrip())
+            j = i + 1
+            while j < len(lines) and not lines[j].strip().startswith("```"):
+                j += 1
+            code = "\n".join(l[pad:] if l[:pad].isspace() else l.lstrip() for l in lines[i + 1:j])
+            out.append(f"<pre>{htmllib.escape(code, quote=False)}</pre>")
+            i = j + 1
+        elif s == "---":
+            out.append("<hr>")
+            i += 1
+        elif s.startswith("#"):
+            level = len(s) - len(s.lstrip("#"))
+            text = inline(s[level:].strip())
+            out.append(f'<h{level} id="{slug(text)}">{text}</h{level}>')
+            i += 1
+        elif s.startswith(">"):
+            j = i
+            while j < len(lines) and lines[j].strip().startswith(">"):
+                j += 1
+            quote = [l.strip()[1:].lstrip() for l in lines[i:j]]
+            out.append(f'<div class="note">{md_blocks(quote)}</div>')
+            i = j
+        elif s.startswith("|"):
+            j = i
+            while j < len(lines) and lines[j].strip().startswith("|"):
+                j += 1
+            head, rows = cells(lines[i]), [cells(r) for r in lines[i + 2:j]]
+            th = "" if not any(head) else "<tr>" + "".join(f"<th>{inline(c)}</th>" for c in head) + "</tr>\n"
+            td = "".join("<tr>" + "".join(f"<td>{inline(c)}</td>" for c in r) + "</tr>\n" for r in rows)
+            out.append(f"<table>\n{th}{td}</table>")
+            i = j
+        elif IMG_TAG.fullmatch(s):     # the manual's screenshots: <img src="images/..." alt="...">
+            src, alt = IMG_TAG.fullmatch(s).groups()
+            alt = htmllib.escape(alt or "")
+            out.append(f'<div class="figure"><img src="{doc_image(src)}" alt="{alt}">'
+                       f'<div class="caption">{alt}</div></div>')
+            i += 1
+        elif LIST_ITEM.match(line):
+            i = md_list(lines, i, out)
+        else:
+            j = i
+            while (j < len(lines) and lines[j].strip() and not LIST_ITEM.match(lines[j])
+                   and not lines[j].strip().startswith(("#", "|", "```", ">", "<img"))):
+                j += 1
+            out.append("<p>" + inline(" ".join(l.strip() for l in lines[i:j])) + "</p>")
+            i = j
+    return "\n".join(out)
+
+
+def md_list(lines, i, out):
+    """A list at one indent. Lines indented past the marker, including fenced code and nested
+    lists, belong to the item above them."""
+    m = LIST_ITEM.match(lines[i])
+    indent, ordered = len(m.group(1)), m.group(2)[0].isdigit()
+    items = []
+    while i < len(lines):
+        m = LIST_ITEM.match(lines[i])
+        if not m or len(m.group(1)) != indent:
+            break
+        cut = m.end()  # continuation lines are indented to the item's text
+        body, i = [lines[i][cut:]], i + 1
+        while i < len(lines):
+            l = lines[i]
+            if l.strip() and len(l) - len(l.lstrip()) <= indent:
+                break
+            if not l.strip() and not (i + 1 < len(lines) and len(lines[i + 1]) - len(lines[i + 1].lstrip()) > indent):
+                break
+            body.append(l[cut:] if l[:cut].isspace() else l.lstrip())
+            i += 1
+        html = md_blocks(body)
+        if html.startswith("<p>") and html.count("<p>") == 1:
+            html = html[3:].replace("</p>", "", 1)
+        items.append(f"<li>{html}</li>")
+    tag = "ol" if ordered else "ul"
+    out.append(f"<{tag}>\n" + "\n".join(items) + f"\n</{tag}>")
+    return i
+
+
+DOC_CSS = """
+body { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.45; margin: 16px 20px; color: #222; max-width: 980px; }
+h1 { font-size: 22px; margin: 0 0 6px; }
+h2 { font-size: 17px; margin: 26px 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
+h3 { font-size: 14px; margin: 18px 0 6px; }
+table { border-collapse: collapse; margin: 6px 0 10px; }
+td, th { font-size: 13px; border: 1px solid #ccc; padding: 4px 8px; text-align: left; vertical-align: top; }
+th { background: #f0f0f0; }
+code, pre { font-family: Menlo, Monaco, monospace; font-size: 12px; }
+pre { background: #f4f4f4; padding: 6px 10px; overflow-x: auto; }
+hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
+.note { background: #fff8e0; border: 1px solid #e8d48a; padding: 2px 10px; margin: 8px 0; }
+.figure { margin: 10px 0 14px; }
+.figure img { max-width: 100%; max-height: 560px; border: 1px solid #ddd; }
+.caption { color: #666; font-size: 12px; margin-top: 3px; }
+"""
+
+
+def docs_html(v, name):
+    """The whole installer manual as this profile's Documentation tab page."""
+    body = md_blocks(MANUAL.read_text(encoding="utf-8").splitlines())
+    page = f"""<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
+<title>{MANUFACTURER} {htmllib.escape(v['model'])} - Matchstick {VERSION}</title>
+<style>{DOC_CSS}</style>
+</head>
+<body>
+{body}
+</body>
+</html>
+"""
+    out = DOCS / name
+    out.parent.mkdir(exist_ok=True)
+    out.write_bytes(page.encode("ascii", "xmlcharrefreplace"))
+    print(f"wrote documentation/{name}: Documentation tab ({out.stat().st_size // 1024} KB)")
 
 
 if __name__ == "__main__":

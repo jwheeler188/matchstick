@@ -147,7 +147,9 @@ Next steps
      (no Developer Options? Settings > My Fire TV > About > click the device name 7 times)
   2. Pair each one:   $DEST/firetvctl pair <fire-tv-ip>
      then choose "Always allow from this computer" and OK on the TV.
-  3. In Blueprint add "Amazon Fire TV (Matchstick)" or "(Matchstick Keyboard)" from profile/,
+  3. Copy a profile's files from profile/ (componentProfiles, documentation, images) into the
+     same folders of your Blueprint custom profiles folder, then add "Amazon Fire TV (Matchstick)"
+     or "(Matchstick Keyboard)",
      set its Device IP to this host and its "Fire TV IP Address" state variable to the Fire TV.
   Full instructions: docs/MANUAL.md
 EOF
