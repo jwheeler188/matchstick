@@ -1,4 +1,4 @@
-# Matchstick 1.4: Fire TV control for Savant
+# Matchstick 1.5: Fire TV control for Savant
 
 IP control of Amazon Fire TV devices from Savant: navigation, apps, power, Live TV and, with the
 Keyboard profile, the Savant Pro app's text entry and pairing. A small service on the Savant host
@@ -18,9 +18,9 @@ Savant (profile)  --TCP 2360-->  Matchstick on the Savant host  --ADB 5555-->  F
    `bash install.sh`. Enter the password once.
 3. **Pair:** `firetvctl pair <fire-tv-ip>`, then on the TV tick **Always allow from this
    computer** and choose **OK**. Check: `firetvctl test <fire-tv-ip> HOME`.
-4. **Blueprint:** copy a profile's three files from `profile/` (`componentProfiles`,
-   `documentation` and `images`) into the same folders of your custom profiles folder **without
-   renaming them** (the `.htm` is this manual, for the Documentation tab), add one
+4. **Blueprint:** import a profile from `profile/blueprint-import/`, where it sits with its
+   manual (`.htm`, for the Documentation tab) and icon (`.icns`); don't rename or separate them.
+   Add one
    component per Fire TV, wire its ETHERNET port to the switch and set the
    Device IP to the **Savant host**, then set the **Fire TV IP Address** state variable to the Fire TV.
    - `amazon_fire tv (matchstick).xml`: standard Fire TV service and remote.
@@ -34,7 +34,8 @@ Savant (profile)  --TCP 2360-->  Matchstick on the Savant host  --ADB 5555-->  F
 | `install.sh`, `uninstall.sh` | Install or remove on the Savant host |
 | `bridge/` | The service, its example config and the Fire TV key helper |
 | `scripts/firetvctl` | Management command (installed as `firetvctl`) |
-| `profile/` | Blueprint profiles, their Documentation tab pages and icons (in Blueprint's folder layout), and their generator |
+| `profile/blueprint-import/` | The Blueprint profiles, each with its Documentation tab page and icon: import from here |
+| `profile/generate_profile.py` | Builds the profiles and pages |
 | `tools/` | Test scripts for troubleshooting on site |
 | `docs/MANUAL.md` | Installer manual |
 | `keyhelper/` | Source of the key helper |

@@ -73,7 +73,7 @@ import struct
 import sys
 import time
 
-VERSION = "1.4.2"
+VERSION = "1.5.0"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(HERE, "config.json")

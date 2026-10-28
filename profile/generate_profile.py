@@ -2,11 +2,11 @@
 """
 Generates the Savant Blueprint component profile for Matchstick, the Fire TV bridge.
 
-    python3 generate_profile.py      -> writes, in Blueprint's library layout (as in Savant's own library):
-                                        componentProfiles/"amazon_fire tv (matchstick).xml"
-                                        componentProfiles/"amazon_fire tv (matchstick keyboard).xml" (Pro app text entry)
-                                        documentation/<same names>.htm (Documentation tab, built from docs/MANUAL.md)
-                                        (images/<same names>.icns, the icons, are kept as they are)
+    python3 generate_profile.py      -> writes blueprint-import/, the folder to import from in Blueprint:
+                                        "amazon_fire tv (matchstick).xml"
+                                        "amazon_fire tv (matchstick keyboard).xml" (Pro app text entry)
+                                        <same names>.htm (Documentation tab, built from docs/MANUAL.md)
+                                        (<same names>.icns, the icons, are kept as they are)
 
 Blueprint finds a profile's file by its name, "<manufacturer>_<model>.xml" in lower case
 (like Savant's "apple_apple tv (atv-bridge).xml"). Any other file name shows in the
@@ -42,10 +42,11 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 HERE = Path(__file__).resolve().parent
-# Blueprint's library layout: a component's Documentation tab shows documentation/<profile name>.htm
-# and its icon is images/<profile name>.icns, both looked up by the profile's file name.
-PROFILES = HERE / "componentProfiles"
-DOCS = HERE / "documentation"
+# On import, Blueprint copies <name>.htm (the Documentation tab; a <name>_files folder too, if any)
+# and <name>.icns (the icon) from the same folder as <name>.xml, and sorts them into its library's
+# componentProfiles/, documentation/ and images/ itself. Subfolders beside the XML are ignored, so
+# all three live flat in one folder (like Savant's Honeywell package).
+PKG = HERE / "blueprint-import"
 sys.path.insert(0, str(HERE.parent / "bridge"))
 from firetv_bridge import VERSION, BUILTIN_APPS, FRIENDLY  # noqa: E402
 
@@ -262,9 +263,14 @@ def build(v):
         One component per Fire TV; all of them point at the same bridge.
         LaunchApp takes an alias ({app_list}) or any Android package name.
         Volume/Mute custom actions go to the TV/AVR over HDMI-CEC; normally route volume to the AVR/TV in Savant.
-        Gate automations on ONLINE = 1. If LAST_ERROR is not blank it says what to fix.
+        Workflows and scenes: add a condition that ONLINE is 1 before sending the Fire TV commands. ONLINE is 1
+        only while Matchstick can control it, so commands aren't lost while it's offline or asleep on Wi-Fi.
+        Troubleshooting: check LAST_ERROR first. It's blank when all is well; otherwise it says what's wrong and what to do.
+        Full manual: the Documentation tab.
 
         ====================== Change Log ==================
+        Version: 1.5 Change: Manual on the Documentation tab (import with the .htm and .icns beside the .xml),
+                     clearer notes. Works with Matchstick bridge 1.4.1 and later.
         Version: 1.4 Change: Keyboard version (Pro app text entry and pairing), LiveTV action, Double Home Action,
                      file names Blueprint can find (amazon_fire tv (...).xml). Needs Matchstick bridge 1.4.
         Version: 1.1 Change: Rebuilt on Savant's Roku profile structure (service generation, standard button names).
@@ -344,7 +350,7 @@ def build(v):
         "</component>",
         "",
     ])
-    out = PROFILES / f"{MANUFACTURER}_{v['model']}.xml".lower()
+    out = PKG / f"{MANUFACTURER}_{v['model']}.xml".lower()
     out.parent.mkdir(exist_ok=True)
     out.write_text(xml, encoding="utf-8")
     print(f"wrote {out.name}: {len(res)} service actions, {len(cus)} custom actions, {len(states_list)} states")
@@ -526,10 +532,10 @@ def docs_html(v, name):
 </body>
 </html>
 """
-    out = DOCS / name
+    out = PKG / name
     out.parent.mkdir(exist_ok=True)
     out.write_bytes(page.encode("ascii", "xmlcharrefreplace"))
-    print(f"wrote documentation/{name}: Documentation tab ({out.stat().st_size // 1024} KB)")
+    print(f"wrote {name}: Documentation tab ({out.stat().st_size // 1024} KB)")
 
 
 if __name__ == "__main__":

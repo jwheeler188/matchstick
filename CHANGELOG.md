@@ -15,32 +15,32 @@
     can restart it.
   - Until then, the fallback without touching the Fire TV is a Savant-controlled power outlet
     or relay on its power supply.
-- Profile Notes tab: reword "Gate automations on ONLINE = 1. If LAST_ERROR is not blank it says
-  what to fix." in plain language (only send commands when ONLINE is 1; check LAST_ERROR first
-  when troubleshooting). Changes the profile, so it goes in with the next profile version bump.
 - Vega OS support: Fire TVs running Amazon's Vega OS (Linux-based, not Android) instead of Fire
   OS, such as the Fire TV Stick 4K Select. They don't use Android's ADB or key handling, so they
   need their own way to connect, send keys and launch apps. Researching that comes first.
 
-## 1.4.2 (2026-10-27): manual in Blueprint
+## 1.5.0 (2026-10-27): manual in Blueprint
 
-Documentation only: the bridge is unchanged apart from its version number, and the profiles are
-unchanged (profile version stays 1.4), so existing components need nothing.
+Profile version 1.5: import the profiles again and refresh existing components (Blueprint only
+updates a component when the profile version goes up). The bridge is unchanged from 1.4.1 apart
+from its version number.
 
 **Profiles**
-- The installer manual now shows on each component's **Documentation** tab in Blueprint (it was
-  greyed out). Blueprint looks for `documentation/<profile name>.htm` beside `componentProfiles/`,
-  so `profile/` now uses Blueprint's library layout: `componentProfiles/` (the profiles),
-  `documentation/` (the manual, screenshots included) and `images/` (the icons). Copy each file
-  into the same folder of your custom profiles folder, without renaming it.
-- `generate_profile.py` builds the Documentation tab pages from `docs/MANUAL.md`, so the tab and
-  the manual always match.
+- The installer manual now shows on each component's **Documentation** tab in Blueprint, and
+  the icon comes in with the profile. On import, Blueprint takes `<name>.htm` (the manual) and
+  `<name>.icns` (the icon) from the same folder as `<name>.xml` and files them into its library
+  itself; subfolders beside the XML are ignored. So the profiles now ship flat in
+  `profile/blueprint-import/`, each with its `.htm` and `.icns`. Import from there.
+- Clearer Notes tab: only send the Fire TV commands from workflows and scenes when ONLINE is 1,
+  and check LAST_ERROR first when troubleshooting. The Notes tab points to the Documentation tab.
+- `generate_profile.py` writes `blueprint-import/` and builds the Documentation tab pages from
+  `docs/MANUAL.md`, screenshots embedded, so the tab and the manual always match.
 
 **Manual**
 - Section 8 shows what working state feedback looks like in Savant's State Values window, for
   the standard and Keyboard profiles, and how to use the states in buttons and workflows.
-- Section 6 lists the three files to copy per profile; troubleshooting covers a greyed-out
-  Documentation tab.
+- Section 6 covers importing from `blueprint-import`; troubleshooting covers a greyed-out
+  Documentation tab and a "?" icon.
 
 ## 1.4.1 (2026-10-27): ADB stays connected
 

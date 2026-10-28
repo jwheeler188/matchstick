@@ -1,7 +1,7 @@
 <html>
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=us-ascii">
-<title>Amazon Fire TV (Matchstick) - Matchstick 1.4.2</title>
+<title>Amazon Fire TV (Matchstick) - Matchstick 1.5.0</title>
 <style>
 body { font-family: -apple-system, Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.45; margin: 16px 20px; color: #222; max-width: 980px; }
 h1 { font-size: 22px; margin: 0 0 6px; }
@@ -20,7 +20,7 @@ hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
 </style>
 </head>
 <body>
-<h1 id="matchstick-14-installer-manual">Matchstick 1.4 Installer Manual</h1>
+<h1 id="matchstick-15-installer-manual">Matchstick 1.5 Installer Manual</h1>
 <p>Matchstick gives Savant IP control of Amazon Fire TV devices: navigation, apps, power, Live TV, and, with the Keyboard profile, the Savant Pro app's text entry and pairing.</p>
 <pre>Savant (profile)  --TCP 2360--&gt;  Matchstick on the Savant host  --ADB 5555--&gt;  Fire TV</pre>
 <p>A Fire TV's only network control method is ADB (Android Debug Bridge), which Savant can't speak. Matchstick is a small service on the Savant host that speaks ADB to each Fire TV, and the Matchstick profile in Blueprint talks to that service over plain TCP. One service serves every Fire TV in the home.</p>
@@ -72,7 +72,7 @@ hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
 <p>This installs to <code>~/matchstick</code>. To use another folder: <code>bash install.sh ~/some-folder</code>.</p></li>
 <li>Enter the Savant user's password when asked. It's needed once, to install the service and to add the <code>firetvctl</code> shortcut in <code>/usr/local/bin</code>.</li>
 </ol>
-<p>The installer finishes with <code>Matchstick 1.4.2 installed and running on port 2360</code>.</p>
+<p>The installer finishes with <code>Matchstick 1.5.0 installed and running on port 2360</code>.</p>
 <p><b>What it installs:</b></p>
 <ul>
 <li><code>~/matchstick/</code>: the bridge, config, logs, adb, the key helper and <code>firetvctl</code>.</li>
@@ -90,7 +90,7 @@ hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
 <p>The TV goes to the home screen.</p>
 <p>Pairing is stored on the Fire TV and survives reboots. A factory reset clears it; pair again.</p>
 <h2 id="5-choose-a-profile">5. Choose a profile</h2>
-<p>Both profiles are in <code>profile/componentProfiles/</code>. Use one per Fire TV.</p>
+<p>Both profiles are in <code>profile/blueprint-import/</code>. Use one per Fire TV.</p>
 <table>
 <tr><th></th><th><b>Amazon Fire TV (Matchstick)</b></th><th><b>Amazon Fire TV (Matchstick Keyboard)</b></th></tr>
 <tr><td>File</td><td><code>amazon_fire tv (matchstick).xml</code></td><td><code>amazon_fire tv (matchstick keyboard).xml</code></td></tr>
@@ -103,14 +103,14 @@ hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
 <p>Pick <b>Keyboard</b> when clients will search and type in apps. Pick the standard profile for the fullest standard remote.</p>
 <h2 id="6-set-up-in-blueprint">6. Set up in Blueprint</h2>
 <ol>
-<li><p><code>profile/</code> is laid out like Blueprint's custom profiles folder: <code>componentProfiles</code> (the profile), <code>documentation</code> (this manual, for the component's <b>Documentation</b> tab) and <code>images</code> (the icon). Copy each file into the folder of the same name in your custom profiles folder, <b>without renaming any of them</b>:</p>
+<li><p><b>Import the profile</b> into Blueprint's library from <code>profile/blueprint-import/</code>. Each profile there sits with its two companions, all with the same name:</p>
 <table>
-<tr><th>From <code>profile/</code></th><th>To your custom profiles folder</th></tr>
-<tr><td><code>componentProfiles/amazon_fire tv (matchstick).xml</code></td><td><code>componentProfiles/</code></td></tr>
-<tr><td><code>documentation/amazon_fire tv (matchstick).htm</code></td><td><code>documentation/</code></td></tr>
-<tr><td><code>images/amazon_fire tv (matchstick).icns</code></td><td><code>images/</code></td></tr>
+<tr><th>File</th><th>What</th></tr>
+<tr><td><code>amazon_fire tv (matchstick).xml</code></td><td>The profile</td></tr>
+<tr><td><code>amazon_fire tv (matchstick).htm</code></td><td>This manual, for the component's <b>Documentation</b> tab</td></tr>
+<tr><td><code>amazon_fire tv (matchstick).icns</code></td><td>The component icon</td></tr>
 </table>
-<p>(The same three for the Keyboard profile, <code>amazon_fire tv (matchstick keyboard)</code>.) Blueprint finds all three by the profile's file name, <code>&lt;manufacturer&gt;_&lt;model&gt;</code> in lower case. A renamed profile still shows in the component list, but dragging it in fails with "Component not found"; a renamed documentation file leaves the Documentation tab greyed out.</p></li>
+<p>(The same three for the Keyboard profile, <code>amazon_fire tv (matchstick keyboard)</code>.) Importing the <code>.xml</code> brings in the <code>.htm</code> and <code>.icns</code> from the same folder, and Blueprint files them into its library itself. Keep the three together and <b>don't rename any of them</b>: Blueprint matches them by the profile's file name, <code>&lt;manufacturer&gt;_&lt;model&gt;</code> in lower case. A renamed profile still shows in the component list, but dragging it in fails with "Component not found".</p></li>
 <li>Add the component to the design, one per Fire TV.</li>
 <li><b>Control port:</b> wire the component's ETHERNET port to your network switch. The <b>Device IP Address</b> field then appears under Control Ports. Set it to the <b>Savant host's</b> IP, or <code>127.0.0.1</code> since Matchstick runs on the host (it listens on port 2360).</li>
 <li><b>Inspector &#8594; State Variables &#8594; Fire TV IP Address:</b> the Fire TV's own IP.</li>
@@ -239,8 +239,8 @@ hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
 <tr><td><code>IP netflix not allowed</code></td><td>Arguments in the wrong order. The Fire TV IP comes first.</td></tr>
 <tr><td>Can't drag the profile into Blueprint ("Component not found")</td><td>The file was renamed. Use the original file name.</td></tr>
 <tr><td>No Device IP Address field in Blueprint</td><td>Wire the ETHERNET port to the network switch first.</td></tr>
-<tr><td>Documentation tab greyed out on the component</td><td>The manual isn't in your custom <code>documentation</code> folder under the profile's name. Copy <code>profile/documentation/&lt;profile name&gt;.htm</code> there without renaming it (section 6), then close and reopen the component's documentation.</td></tr>
-<tr><td>Component shows a "?" instead of the Fire TV icon</td><td>The component was added before the icon was in the custom <code>images</code> folder, and each design keeps its own copy. Copy the icon into the design's <code>images</code> folder (inside the saved <code>.rpmConfig</code>) named like the profile with an upper-case <code>.ICNS</code>, e.g. <code>amazon_fire tv (matchstick).ICNS</code>, then close and reopen the design. Or remove the component and add it again.</td></tr>
+<tr><td>Documentation tab greyed out on the component</td><td>The profile was imported without its <code>.htm</code> beside it (copied in by hand, renamed, or from another folder). Import it again from <code>profile/blueprint-import/</code> (section 6). Or copy <code>&lt;profile name&gt;.htm</code> into the <code>documentation</code> folder of your custom profiles folder, then close and reopen the component's documentation.</td></tr>
+<tr><td>Component shows a "?" instead of the Fire TV icon</td><td>The profile was imported without its <code>.icns</code> beside it, or the component was added before the icon was in the library; each design keeps its own copy. Import again from <code>profile/blueprint-import/</code> for new components. Copy the icon into the design's <code>images</code> folder (inside the saved <code>.rpmConfig</code>) named like the profile with an upper-case <code>.ICNS</code>, e.g. <code>amazon_fire tv (matchstick).ICNS</code>, then close and reopen the design. Or remove the component and add it again.</td></tr>
 <tr><td>Keys feel slow</td><td><code>firetvctl logs</code> should show <code>key helper running</code> after each connect. If it says the helper didn't start, keys fall back to slower methods; restart the service.</td></tr>
 <tr><td>CEC didn't turn the TV on</td><td>Fire TV PowerOn wakes the Fire TV; turn the TV on from Savant as usual.</td></tr>
 <tr><td>App launch shows "not installed"</td><td>Check the package with <code>firetvctl apps &lt;ip&gt;</code>.</td></tr>
@@ -250,7 +250,7 @@ hr { border: 0; border-top: 1px solid #ddd; margin: 18px 0; }
 <p><b>Sleep.</b> A Fire TV goes to sleep when the TV turns off (HDMI-CEC). Matchstick stays connected, and PowerOn wakes it. While asleep it goes quiet on Wi-Fi for a few seconds every few minutes; Matchstick waits these out. If a unit keeps dropping off the network for longer, put it on Ethernet.</p>
 <p><b>ADB relay.</b> adb on the host reaches each Fire TV through a small relay inside Matchstick (<code>127.0.0.1</code>, from port 20000), which holds the Fire TV's one ADB connection through quiet spells. <code>firetvctl status</code> shows it next to the IP. To use <code>adb</code> by hand while the service runs, go through <code>firetvctl</code> (<code>pair</code>, <code>apps</code>, <code>test</code>); connecting straight to <code>&lt;ip&gt;:5555</code> from another computer is refused while Matchstick holds the connection.</p>
 <h2 id="12-upgrade-and-uninstall">12. Upgrade and uninstall</h2>
-<p><b>Upgrade:</b> copy the new <code>matchstick</code> folder to the host and run its <code>install.sh</code> with the same folder as before (for example <code>bash install.sh</code> or <code>bash install.sh ~/adb-test</code>). Pairings, <code>config.json</code> and logs are kept. Then copy the new profiles into Blueprint and refresh the components. Blueprint only updates a component when the profile's version is higher than the one in the design (this release is profile version 1.4). Upgrading from 1.1 or earlier also replaces the old login item with the system service.</p>
+<p><b>Upgrade:</b> copy the new <code>matchstick</code> folder to the host and run its <code>install.sh</code> with the same folder as before (for example <code>bash install.sh</code> or <code>bash install.sh ~/adb-test</code>). Pairings, <code>config.json</code> and logs are kept. Then import the new profiles into Blueprint from <code>profile/blueprint-import/</code> and refresh the components. Blueprint only updates a component when the profile's version is higher than the one in the design (this release is profile version 1.5). Upgrading from 1.1 or earlier also replaces the old login item with the system service.</p>
 <p><b>Uninstall:</b></p>
 <pre>bash ~/matchstick/uninstall.sh            # add --keep-config to save config.json first</pre>
 <p>It removes only what the installer created, and asks for the password to remove the service and the shortcut. Nothing in Savant is touched. The key helper file on each Fire TV (<code>/data/local/tmp/matchstick-keys.dex</code>, 3 KB) is left; it's removed by a factory reset, and it does nothing on its own.</p>

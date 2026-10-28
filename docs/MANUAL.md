@@ -1,4 +1,4 @@
-# Matchstick 1.4 Installer Manual
+# Matchstick 1.5 Installer Manual
 
 Matchstick gives Savant IP control of Amazon Fire TV devices: navigation, apps, power, Live TV,
 and, with the Keyboard profile, the Savant Pro app's text entry and pairing.
@@ -71,7 +71,7 @@ port, or an Ethernet adapter for a stick) is the most reliable.
 3. Enter the Savant user's password when asked. It's needed once, to install the service and to
    add the `firetvctl` shortcut in `/usr/local/bin`.
 
-The installer finishes with `Matchstick 1.4.2 installed and running on port 2360`.
+The installer finishes with `Matchstick 1.5.0 installed and running on port 2360`.
 
 **What it installs:**
 - `~/matchstick/`: the bridge, config, logs, adb, the key helper and `firetvctl`.
@@ -104,7 +104,7 @@ Pairing is stored on the Fire TV and survives reboots. A factory reset clears it
 
 ## 5. Choose a profile
 
-Both profiles are in `profile/componentProfiles/`. Use one per Fire TV.
+Both profiles are in `profile/blueprint-import/`. Use one per Fire TV.
 
 | | **Amazon Fire TV (Matchstick)** | **Amazon Fire TV (Matchstick Keyboard)** |
 |---|---|---|
@@ -120,21 +120,21 @@ fullest standard remote.
 
 ## 6. Set up in Blueprint
 
-1. `profile/` is laid out like Blueprint's custom profiles folder: `componentProfiles`
-   (the profile), `documentation` (this manual, for the component's **Documentation** tab) and
-   `images` (the icon). Copy each file into the folder of the same name in your custom profiles
-   folder, **without renaming any of them**:
+1. **Import the profile** into Blueprint's library from `profile/blueprint-import/`. Each
+   profile there sits with its two companions, all with the same name:
 
-   | From `profile/` | To your custom profiles folder |
+   | File | What |
    |---|---|
-   | `componentProfiles/amazon_fire tv (matchstick).xml` | `componentProfiles/` |
-   | `documentation/amazon_fire tv (matchstick).htm` | `documentation/` |
-   | `images/amazon_fire tv (matchstick).icns` | `images/` |
+   | `amazon_fire tv (matchstick).xml` | The profile |
+   | `amazon_fire tv (matchstick).htm` | This manual, for the component's **Documentation** tab |
+   | `amazon_fire tv (matchstick).icns` | The component icon |
 
    (The same three for the Keyboard profile, `amazon_fire tv (matchstick keyboard)`.)
-   Blueprint finds all three by the profile's file name, `<manufacturer>_<model>` in lower case.
-   A renamed profile still shows in the component list, but dragging it in fails with
-   "Component not found"; a renamed documentation file leaves the Documentation tab greyed out.
+   Importing the `.xml` brings in the `.htm` and `.icns` from the same folder, and Blueprint
+   files them into its library itself. Keep the three together and **don't rename any of
+   them**: Blueprint matches them by the profile's file name, `<manufacturer>_<model>` in lower
+   case. A renamed profile still shows in the component list, but dragging it in fails with
+   "Component not found".
 2. Add the component to the design, one per Fire TV.
 3. **Control port:** wire the component's ETHERNET port to your network switch. The **Device IP
    Address** field then appears under Control Ports. Set it to the **Savant host's** IP, or
@@ -320,8 +320,8 @@ Start with `firetvctl status` and `firetvctl logs`. LAST_ERROR in Savant usually
 | `IP netflix not allowed` | Arguments in the wrong order. The Fire TV IP comes first. |
 | Can't drag the profile into Blueprint ("Component not found") | The file was renamed. Use the original file name. |
 | No Device IP Address field in Blueprint | Wire the ETHERNET port to the network switch first. |
-| Documentation tab greyed out on the component | The manual isn't in your custom `documentation` folder under the profile's name. Copy `profile/documentation/<profile name>.htm` there without renaming it (section 6), then close and reopen the component's documentation. |
-| Component shows a "?" instead of the Fire TV icon | The component was added before the icon was in the custom `images` folder, and each design keeps its own copy. Copy the icon into the design's `images` folder (inside the saved `.rpmConfig`) named like the profile with an upper-case `.ICNS`, e.g. `amazon_fire tv (matchstick).ICNS`, then close and reopen the design. Or remove the component and add it again. |
+| Documentation tab greyed out on the component | The profile was imported without its `.htm` beside it (copied in by hand, renamed, or from another folder). Import it again from `profile/blueprint-import/` (section 6). Or copy `<profile name>.htm` into the `documentation` folder of your custom profiles folder, then close and reopen the component's documentation. |
+| Component shows a "?" instead of the Fire TV icon | The profile was imported without its `.icns` beside it, or the component was added before the icon was in the library; each design keeps its own copy. Import again from `profile/blueprint-import/` for new components. Copy the icon into the design's `images` folder (inside the saved `.rpmConfig`) named like the profile with an upper-case `.ICNS`, e.g. `amazon_fire tv (matchstick).ICNS`, then close and reopen the design. Or remove the component and add it again. |
 | Keys feel slow | `firetvctl logs` should show `key helper running` after each connect. If it says the helper didn't start, keys fall back to slower methods; restart the service. |
 | CEC didn't turn the TV on | Fire TV PowerOn wakes the Fire TV; turn the TV on from Savant as usual. |
 | App launch shows "not installed" | Check the package with `firetvctl apps <ip>`. |
@@ -347,9 +347,9 @@ computer is refused while Matchstick holds the connection.
 
 **Upgrade:** copy the new `matchstick` folder to the host and run its `install.sh` with the same
 folder as before (for example `bash install.sh` or `bash install.sh ~/adb-test`). Pairings,
-`config.json` and logs are kept. Then copy the new profiles into Blueprint and refresh the
-components. Blueprint only updates a component when the profile's version is higher than the one
-in the design (this release is profile version 1.4). Upgrading from 1.1 or earlier also replaces the old login item with the system service.
+`config.json` and logs are kept. Then import the new profiles into Blueprint from
+`profile/blueprint-import/` and refresh the components. Blueprint only updates a component when the profile's version is higher than the one
+in the design (this release is profile version 1.5). Upgrading from 1.1 or earlier also replaces the old login item with the system service.
 
 **Uninstall:**
 ```
