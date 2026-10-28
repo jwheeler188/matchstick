@@ -71,7 +71,7 @@ port, or an Ethernet adapter for a stick) is the most reliable.
 3. Enter the Savant user's password when asked. It's needed once, to install the service and to
    add the `firetvctl` shortcut in `/usr/local/bin`.
 
-The installer finishes with `Matchstick 1.4.1 installed and running on port 2360`.
+The installer finishes with `Matchstick 1.4.2 installed and running on port 2360`.
 
 **What it installs:**
 - `~/matchstick/`: the bridge, config, logs, adb, the key helper and `firetvctl`.

@@ -19,6 +19,26 @@
   OS, such as the Fire TV Stick 4K Select. They don't use Android's ADB or key handling, so they
   need their own way to connect, send keys and launch apps. Researching that comes first.
 
+## 1.4.2 (2026-10-27): manual in Blueprint
+
+Documentation only: the bridge is unchanged apart from its version number, and the profiles are
+unchanged (profile version stays 1.4), so existing components need nothing.
+
+**Profiles**
+- The installer manual now shows on each component's **Documentation** tab in Blueprint (it was
+  greyed out). Blueprint looks for `documentation/<profile name>.htm` beside `componentProfiles/`,
+  so `profile/` now uses Blueprint's library layout: `componentProfiles/` (the profiles),
+  `documentation/` (the manual, screenshots included) and `images/` (the icons). Copy each file
+  into the same folder of your custom profiles folder, without renaming it.
+- `generate_profile.py` builds the Documentation tab pages from `docs/MANUAL.md`, so the tab and
+  the manual always match.
+
+**Manual**
+- Section 8 shows what working state feedback looks like in Savant's State Values window, for
+  the standard and Keyboard profiles, and how to use the states in buttons and workflows.
+- Section 6 lists the three files to copy per profile; troubleshooting covers a greyed-out
+  Documentation tab.
+
 ## 1.4.1 (2026-10-27): ADB stays connected
 
 Fixes the Fire TV getting stuck as **OFFLINE** until ADB debugging was turned off and on. No
@@ -46,17 +66,6 @@ profile changes (profile version stays 1.4), so Blueprint needs nothing.
 - New settings: `stall_hold_seconds` (600) and `relay_base_port` (20000).
 - `firetvctl pair` and `apps`, and `tools/adb_test.sh`, go through the relay when the service
   is running.
-
-**Profiles**
-- The installer manual now shows on each component's **Documentation** tab in Blueprint (it was
-  greyed out). `profile/` uses Blueprint's library layout: `componentProfiles/` (the profiles),
-  `documentation/` (the manual as `<profile name>.htm`, screenshots included) and `images/` (the
-  icons). Copy each into the same folder of your custom profiles folder. The profiles themselves
-  are unchanged.
-- `generate_profile.py` builds the Documentation tab pages from `docs/MANUAL.md`.
-
-**Manual**
-- Section 8 shows what working state feedback looks like in Savant's State Values window.
 
 **Tested** on a Fire TV Stick 4K (Fire OS 6.7.1.1): a 12-hour overnight run with the TV off
 held 42 quiet spells of up to 19 s with no reconnects and no time OFFLINE, and blocking the
