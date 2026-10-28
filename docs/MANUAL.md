@@ -231,6 +231,24 @@ find its package with `firetvctl apps <ip>` and use the package name, or add an 
 Known limits: on Fire OS 6, Fire TV Settings reports APP_NAME as Home. Status refreshes every
 5 seconds and about 1 second after each command.
 
+**What working feedback looks like.** Savant's State Values window, filtered on the component
+name, shows every state Matchstick reports. A healthy Fire TV reads `ONLINE 1`, `ADB CONNECTED`
+and a blank `LAST_ERROR`, with the app in front in `APP_NAME` and `APP_PACKAGE`. Use these for
+feedback on buttons and custom screens, and as conditions in workflows (for example, only send
+a command when `ONLINE` is 1, or start a lighting scene when `APP_NAME` is Netflix).
+
+Standard profile: the Fire TV's states, plus Savant's volume and mute states for the zone.
+
+<img src="images/blueprint-state-values-standard.png" width="700" alt="State Values for a standard profile component: ONLINE 1, ADB CONNECTED, APP_NAME Netflix, POWER ON, BRIDGE_VERSION 1.4.1">
+
+Keyboard profile: the same Fire TV states, plus the Apple TV service states the Pro app uses
+(`KeyboardFocused`, `PairingState`, `Discovered`).
+
+<img src="images/blueprint-state-values-keyboard.png" width="700" alt="State Values for a Keyboard profile component: the same Fire TV states plus KeyboardFocused 0 and PairingState paired">
+
+Two components can point at the same Fire TV, as here; both get the same Fire TV states. Only
+the component the zone is using shows `ServiceIsActive 1`.
+
 ## 9. firetvctl
 
 Run on the host. `start`, `stop` and `restart` ask for the Savant user's password.
