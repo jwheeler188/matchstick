@@ -15,6 +15,9 @@
     can restart it.
   - Until then, the fallback without touching the Fire TV is a Savant-controlled power outlet
     or relay on its power supply.
+- Profile Notes tab: reword "Gate automations on ONLINE = 1. If LAST_ERROR is not blank it says
+  what to fix." in plain language (only send commands when ONLINE is 1; check LAST_ERROR first
+  when troubleshooting). Changes the profile, so it goes in with the next profile version bump.
 - Vega OS support: Fire TVs running Amazon's Vega OS (Linux-based, not Android) instead of Fire
   OS, such as the Fire TV Stick 4K Select. They don't use Android's ADB or key handling, so they
   need their own way to connect, send keys and launch apps. Researching that comes first.
