@@ -236,8 +236,9 @@ find its package with `firetvctl apps <ip>` and use the package name, or add an 
 | BRIDGE_VERSION | Matchstick version |
 | KeyboardFocused, PairingState, PairingError, Discovered, AvailableApps | Keyboard profile only: the Apple TV service states the Pro app uses |
 
-Known limits: on Fire OS 6, Fire TV Settings reports APP_NAME as Home. On Fire OS 8 the Search key
-does nothing, so the Keyboard profile's search and KeyboardFocused don't work there yet. Status refreshes every
+Known limits: on Fire OS 6, Fire TV Settings reports APP_NAME as Home. On Fire OS 8, Search opens the
+search tab by moving to it (about 4 seconds), and the Pro app keyboard only pops up when search
+was opened from Savant, not with the Fire TV remote. Status refreshes every
 5 seconds and about 1 second after each command.
 
 **What working feedback looks like.** Savant's State Values window, filtered on the component

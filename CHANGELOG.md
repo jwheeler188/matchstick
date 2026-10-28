@@ -15,8 +15,6 @@
     can restart it.
   - Until then, the fallback without touching the Fire TV is a Savant-controlled power outlet
     or relay on its power supply.
-- Fire OS 8 search and keyboard: open search and detect its text box on Fire OS 8, so the
-  Keyboard profile's text pop-up works there too.
 - Vega OS support: Fire TVs running Amazon's Vega OS (Linux-based, not Android) instead of Fire
   OS, such as the Fire TV Stick 4K Select. They don't use Android's ADB or key handling, so they
   need their own way to connect, send keys and launch apps. Researching that comes first.
@@ -24,8 +22,8 @@
 ## 1.5.1 (2026-10-28): Fire OS 8 status
 
 First test on Fire OS 8 (Fire TV Stick AFTKM, Fire OS 8.1.8.5, Android 11): connecting, keys,
-the key helper, app launch and sleep/wake all work. Two status fixes came out of it. Bridge only:
-profiles unchanged (still version 1.5).
+the key helper, app launch and sleep/wake all work. Fixes for status and search came out of it.
+Bridge only: profiles unchanged (still version 1.5).
 
 **Bridge**
 - APP_NAME and APP_PACKAGE now work on Fire OS 8. They were never set there, because
@@ -35,10 +33,15 @@ profiles unchanged (still version 1.5).
   say "playing" (YouTube on Fire OS 8), which made PLAYBACK flip between PLAYING and STOPPED,
   even while the Fire TV was asleep.
 
-**Known issue (Fire OS 8)**
-- The Search key does nothing on Fire OS 8 (search is the magnifier tab on the home screen), so
-  the Keyboard profile's search and KeyboardFocused don't work there yet. Typing into a text box
-  that's already open (TypeText) is unaffected.
+- Search and the Pro app keyboard work on Fire OS 8. There the Search key does nothing and the
+  search screen can't be opened directly (it needs a system permission), so SEARCH moves to the
+  Search tab the way the remote does (Home, Up, Up, Left, Down into its keyboard) and sets
+  KeyboardFocused. SENDTEXT and ENTER then submit from the first suggestion, which opens the
+  results; CLEARTEXT empties the box. Tested: "stargate" from the Pro app path opened the
+  Stargate results page.
+- The search tab's keyboard is part of the home screen, so KeyboardFocused on Fire OS 8 is only
+  true when Matchstick opened search (SEARCH, the Pro app); searching with the Fire TV remote
+  doesn't pop up the Pro app keyboard there.
 
 ## 1.5.0 (2026-10-27): manual in Blueprint
 

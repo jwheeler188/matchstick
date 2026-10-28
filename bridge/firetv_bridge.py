@@ -133,6 +133,19 @@ KEYBOARD_TEST = ("{ " + FOCUS + " | grep -q TextSearch || "
 # Delete on other screens can act like Back.
 CLEAR_SCRIPT = ("if %s; then input keyevent 123 %s; else echo NOKEYBOARD; fi"
                 % (KEYBOARD_TEST, " ".join(["67"] * 40)))
+# Fire OS 8 (Android 11, API 30+): the Search key does nothing, and the text search screen can't be
+# opened directly (it needs a system permission). Search is the magnifier tab left of Home in the
+# top menu; its keyboard is part of the home screen, so the window name doesn't change and
+# Matchstick remembers that it opened it. It gets there the way the remote does (Home, Up, Up,
+# Left, then Down into the keyboard, on "a"). Typed text goes into the box; Enter moves right
+# from the keyboard to the first suggestion (the typed text itself) and selects it, which opens
+# the results. Taps are ignored there.
+FOS8_SDK = 30
+SEARCH_FOS8 = "input keyevent 3; sleep 2; input keyevent 19 19 21; sleep 1.5; input keyevent 20"
+ENTER_FOS8 = "input keyevent 22 22 22 22 22 22; sleep 0.5; input keyevent 23"
+CLEAR_FOS8 = "input keyevent 123 " + " ".join(["67"] * 40)
+# Keys that leave the search screen (arrows and Select move around its keyboard instead).
+LEAVES_SEARCH = {"HOME", "BACK", "MENU", "SETTINGS", "POWERON", "POWEROFF", "POWERTOGGLE"}
 # Apps that show on the Fire TV home screen, for AvailableApps (package names, and the
 # app's name where the app gives it as text rather than a resource).
 APPS_SCRIPT = ("cmd package query-activities -a android.intent.action.MAIN "
@@ -567,6 +580,8 @@ class FireTV:
         self.last_wanted = time.monotonic()
         self.last_connect_try = 0.0
         self.info_fetched = False
+        self.sdk = 0                    # Android API level (30+ = Fire OS 8)
+        self.search_open = False        # Fire OS 8: Matchstick opened the search tab
         self.pair_task = None
         # The command worker, poller, refreshes and pairing all share one adb shell:
         # one connect attempt and one shell command at a time.
@@ -661,11 +676,13 @@ class FireTV:
         self.set("LAST_ERROR", "")
         log.info("%s connected", self.ip)
         if not self.info_fetched:
-            info = await self.sh("getprop ro.product.model; getprop ro.build.version.name")
+            info = await self.sh("getprop ro.product.model; getprop ro.build.version.name; "
+                                 "getprop ro.build.version.sdk")
             lines = [l.strip() for l in (info or "").splitlines() if l.strip()]
             if lines:
                 self.set("MODEL", lines[0])
                 self.set("FIREOS", lines[1] if len(lines) > 1 else "")
+                self.sdk = int(lines[2]) if len(lines) > 2 and lines[2].isdigit() else 0
                 self.info_fetched = True
         await self.find_remote()
         await self.start_helper()
@@ -918,7 +935,13 @@ class FireTV:
             return
         kind = batch[0][0]
         if kind == "KEY":
-            await self.send_keys([name for _, name in batch])
+            names = [name for _, name in batch]
+            if self.sdk >= FOS8_SDK and "SEARCH" in names:
+                await self.fos8_keys(names)
+            else:
+                if LEAVES_SEARCH & set(names):
+                    self.search_open = False
+                await self.send_keys(names)
             if any(name in POWER_KEYS for _, name in batch):
                 self.bridge.later(1.0, self.refresh)
                 self.bridge.later(3.0, self.refresh)
@@ -934,6 +957,7 @@ class FireTV:
                 if not await self.helper_keys("l %d" % KEYS[arg]):
                     await self.sh("input keyevent --longpress %d" % KEYS[arg])
             elif kind == "LAUNCH":
+                self.search_open = False
                 pkg = arg
                 if pkg.startswith("action:"):
                     out = await self.sh("am start -a %s 2>&1 | grep -q '^Error' && echo NOLAUNCH"
@@ -956,11 +980,11 @@ class FireTV:
             elif kind == "SENDTEXT":
                 # Like the Savant Pro app keyboard on Apple TV: the box ends up holding exactly
                 # this text, then it is submitted.
-                await self.sh(CLEAR_SCRIPT, timeout=10)
+                await self.sh(CLEAR_FOS8 if self.search_open else CLEAR_SCRIPT, timeout=10)
                 await self.sh("input text %s" % text_for_input(arg))
                 await self.enter()
             elif kind == "CLEARTEXT":
-                out = await self.sh(CLEAR_SCRIPT, timeout=10)
+                out = await self.sh(CLEAR_FOS8 if self.search_open else CLEAR_SCRIPT, timeout=10)
                 if out and "NOKEYBOARD" in out:
                     self.set("LAST_ERROR", "CLEARTEXT: no text box on screen")
                 self.bridge.later(1.0, self.refresh)
@@ -970,7 +994,25 @@ class FireTV:
             elif kind == "REFRESH":
                 await self.refresh_now()
 
+    async def fos8_keys(self, names):
+        """Fire OS 8: SEARCH opens the search tab by moving there; other keys are sent as usual."""
+        for name in names:
+            if name == "SEARCH":
+                await self.sh(SEARCH_FOS8, timeout=10)
+                self.search_open = True
+                self.set("KeyboardFocused", "true")
+            else:
+                if name in LEAVES_SEARCH:
+                    self.search_open = False
+                await self.send_keys([name])
+        self.bridge.later(1.0, self.refresh)
+
     async def enter(self):
+        if self.search_open:
+            await self.sh(ENTER_FOS8, timeout=10)
+            self.search_open = False
+            self.bridge.later(2.0, self.refresh)
+            return
         out = await self.sh(ENTER_SCRIPT, timeout=15)
         if out and "NOSUGGEST" in out:
             self.set("LAST_ERROR", "ENTER: no search suggestions on screen to open")
@@ -992,7 +1034,9 @@ class FireTV:
         if "APP_PACKAGE" in st:
             self.set("APP_PACKAGE", st["APP_PACKAGE"])
             self.set("APP_NAME", friendly_name(st["APP_PACKAGE"]))
-        self.set("KeyboardFocused", "true" if st["KEYBOARD"] else "false")
+        if st.get("APP_PACKAGE") not in (None, "com.amazon.tv.launcher") or st.get("POWER") == "OFF":
+            self.search_open = False    # left the home screen app, so the search tab is gone
+        self.set("KeyboardFocused", "true" if st["KEYBOARD"] or self.search_open else "false")
 
     async def poll_loop(self):
         idle = self.bridge.cfg["idle_disconnect_minutes"] * 60
