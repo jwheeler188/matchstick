@@ -2,9 +2,11 @@
 
 ## Planned
 
-- ADB recovery: a small companion app on the Fire TV, installed when pairing, that restarts its
-  ADB service when it hangs, so the Fire TV comes back without a restart or the ADB toggle.
-  1.4.1 stops the usual cause of the hang; this stays planned as a backstop.
+- ADB recovery (on hold: only if hangs come back): a small companion app on the Fire TV,
+  installed when pairing, that restarts its ADB service when it hangs, so the Fire TV comes back
+  without a restart or the ADB toggle. 1.4.1 stops the usual cause of the hang: since then the
+  Fire TV has refused connections only during long Wi-Fi drops, and came back by itself each time
+  without the ADB toggle. With the Fire TV off a 5 GHz DFS channel, those drops have stopped.
   - Pairing grants it permission to change secure settings; it switches ADB off and on itself,
     the same as the toggle in Developer Options. "Always allow" survives, so the bridge reconnects.
   - It runs from boot, outside ADB, so it keeps running when ADB stops. It acts when it finds ADB
