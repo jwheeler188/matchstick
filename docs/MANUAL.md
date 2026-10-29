@@ -56,6 +56,8 @@ port, or an Ethernet adapter for a stick) is the most reliable.
    If Developer Options is missing: **Settings → My Fire TV → About**, select the device name
    seven times, then go back.
 2. Note its IP address (**Settings → My Fire TV → About → Network**) and reserve it in the router.
+3. Use Ethernet, a 2.4 GHz network, or a 5 GHz network that is not on a DFS channel (52 to 144).
+   On DFS channels Fire TVs go quiet on Wi-Fi every few minutes (section 11, **Wi-Fi**).
 
 <img src="images/firetv-settings-my-fire-tv.png" width="460" alt="Fire TV Settings with My Fire TV highlighted">
 <img src="images/firetv-adb-debugging.png" width="460" alt="Developer Options with ADB debugging ON">
@@ -317,7 +319,8 @@ Start with `firetvctl status` and `firetvctl logs`. LAST_ERROR in Savant usually
 | `firetvctl: command not found` | You're on another computer, or the shortcut was skipped. Use `~/matchstick/firetvctl`. |
 | "No route to host" pairing, though ping works | Old install running as a login item: re-run `install.sh` (1.2 and later install a system service). |
 | Pairing says `unauthorized`, no prompt on the TV | Wake the TV and stay on its input. Turn ADB debugging off and on, then `firetvctl pair` again. |
-| LAST_ERROR "Fire TV not answering (asleep or off Wi-Fi?) - waiting for it" | Normal with the TV off: the Fire TV goes quiet on Wi-Fi for a few seconds every few minutes. Matchstick holds the connection and carries on when it answers, usually within 20 s. Commands sent meanwhile are dropped; send them again. |
+| LAST_ERROR "Fire TV not answering (asleep or off Wi-Fi?) - waiting for it" | Despite the wording, the Fire TV is almost never asleep or faulty: its Wi-Fi network stopped carrying its traffic for a moment. Matchstick holds the connection and carries on when it answers. Commands sent meanwhile are dropped; send them again. Once or twice a day is normal. If it happens several times an hour, see the next row. |
+| "Not answering" several times an hour, or the Fire TV drops offline for 40 s or more and reconnects | Usually the Wi-Fi channel. Fire TVs on a 5 GHz DFS channel (52 to 144) go quiet for 15 to 40 s every 10 to 30 minutes. Move the Fire TV to a 2.4 GHz network, set the access point's 5 GHz radio to a non-DFS channel (36 to 48 or 149 to 165), or use Ethernet. See **Wi-Fi** below. |
 | ADB stays `OFFLINE` (log shows "shell lost"; `adb devices` shows the Fire TV as `offline`) | The Fire TV is holding an old ADB connection and refusing new ones. 1.4.1 prevents the usual cause and clears it by itself (LAST_ERROR "Fire TV is holding an old ADB connection - clearing it"). If it stays offline, turn **ADB debugging off and on**, or restart the Fire TV (a Savant-controlled power outlet can automate this). Note the time in the log for support. |
 | `IP netflix not allowed` | Arguments in the wrong order. The Fire TV IP comes first. |
 | Can't drag the profile into Blueprint ("Component not found") | The file was renamed. Use the original file name. |
@@ -335,9 +338,28 @@ keys fall back to the physical remote's input device (while the remote is connec
 Android's `input` command (0.3 to 1.2 s per press).
 
 **Sleep.** A Fire TV goes to sleep when the TV turns off (HDMI-CEC). Matchstick stays connected,
-and PowerOn wakes it. While asleep it goes quiet on Wi-Fi for a few seconds every few minutes;
-Matchstick waits these out. If a unit keeps dropping off the network for longer, put it on
-Ethernet.
+and PowerOn wakes it. A sleeping Fire TV still answers on the network; sleep is not what causes
+"not answering" (see **Wi-Fi**).
+
+**Wi-Fi.** "Not answering" spells come from the Wi-Fi network, not the Fire TV. Earlier
+versions of this manual and the 1.4.1 notes put them down to the Fire TV napping with the TV
+off; that was wrong. During a spell the Fire TV stays awake and stays joined to its access
+point, but its traffic stops: ping from the host fails too. On a 5 GHz DFS channel (52 to 144)
+this happens for 15 to 40 s every 10 to 30 minutes, even with a strong signal. Commands sent
+during a spell are dropped, and spells over about 40 s make Matchstick reconnect. Fire TV
+settings don't stop it (a wake lock and turning off Wi-Fi power saving were both tried). In testing, a Fire TV Stick 4K Max on 5 GHz channel 100 had 2 to 6 quiet spells
+an hour; moved to a 2.4 GHz network on the same access point, it had one 6-second spell in
+15 hours. Fixes, best first:
+- Ethernet (the Cube's port, or an Ethernet adapter for a stick).
+- A 2.4 GHz network for the Fire TVs.
+- A non-DFS channel for the access point's 5 GHz radio (36 to 48 or 149 to 165).
+
+The Fire TV's IP stays the same when it changes network on the same subnet (DHCP reservation),
+so Matchstick reconnects by itself. To check the channel, look up the Fire TV in the access
+point's client list, or run this on the host, with the relay address that `firetvctl status`
+shows next to the IP:
+`~/matchstick/platform-tools/adb -s 127.0.0.1:<relay port> shell dumpsys wifi | grep -m1 mWifiInfo`
+(Frequency 5260 to 5720 MHz is a DFS channel; 2412 to 2472 is 2.4 GHz).
 
 **ADB relay.** adb on the host reaches each Fire TV through a small relay inside Matchstick
 (`127.0.0.1`, from port 20000), which holds the Fire TV's one ADB connection through quiet spells.
