@@ -19,19 +19,6 @@
   OS, such as the Fire TV Stick 4K Select. They don't use Android's ADB or key handling, so they
   need their own way to connect, send keys and launch apps. Researching that comes first.
 
-## Unreleased
-
-**Docs**
-- Corrected: the "not answering" spells are caused by the Wi-Fi network, not the Fire TV. The
-  1.4.1 notes and earlier manuals said a Fire TV goes quiet on Wi-Fi every few minutes with the
-  TV off; it doesn't. In testing, a Fire TV Stick 4K Max on a 5 GHz DFS channel (channel 100)
-  had 2 to 6 spells an hour while staying awake and joined to its access point. On a 2.4 GHz
-  network on the same access point it had one 6-second spell in 15 hours. A wake lock and
-  turning off Wi-Fi power saving on the Fire TV made no difference.
-- Manual: new **Wi-Fi** notes in Troubleshooting and a setup step: use Ethernet, 2.4 GHz, or a
-  non-DFS 5 GHz channel (36 to 48 or 149 to 165). The relay from 1.4.1 is still what keeps
-  Matchstick connected through any spell that does happen.
-
 ## 1.5.1 (2026-10-28): Fire OS 8 status
 
 First test on Fire OS 8 (Fire TV Stick AFTKM, Fire OS 8.1.8.5, Android 11): connecting, keys,
@@ -57,6 +44,17 @@ Bridge only: profiles unchanged (still version 1.5).
   Matchstick follows that log line while connected. SENDTEXT, ENTER and CLEARTEXT read the
   current state first, so a bridge that has just started doesn't press Enter on the keyboard
   (which types the focused letter, e.g. "stargatea").
+
+**Docs**
+- Corrected: the "not answering" spells are caused by the Wi-Fi network, not the Fire TV. The
+  1.4.1 notes and earlier manuals said a Fire TV goes quiet on Wi-Fi every few minutes with the
+  TV off; it doesn't. In testing, a Fire TV Stick 4K Max on a 5 GHz DFS channel (channel 100)
+  had 2 to 6 spells an hour while staying awake and joined to its access point. On a 2.4 GHz
+  network on the same access point it had one 6-second spell in 15 hours. A wake lock and
+  turning off Wi-Fi power saving on the Fire TV made no difference.
+- Manual: new **Wi-Fi** notes in Troubleshooting and a setup step: use Ethernet, 2.4 GHz, or a
+  non-DFS 5 GHz channel (36 to 48 or 149 to 165). The relay from 1.4.1 is still what keeps
+  Matchstick connected through any spell that does happen.
 
 ## 1.5.0 (2026-10-27): manual in Blueprint
 
@@ -89,7 +87,7 @@ profile changes (profile version stays 1.4), so Blueprint needs nothing.
 **What was happening**
 - With the TV off, a Fire TV goes quiet on Wi-Fi for a few seconds every few minutes (2 to 40 s
   in testing). Matchstick took each one as a lost connection and reconnected. (Corrected later:
-  the spells came from the Wi-Fi network, a 5 GHz DFS channel, not the Fire TV. See Unreleased.)
+  the spells came from the Wi-Fi network, a 5 GHz DFS channel, not the Fire TV. See 1.5.1.)
 - The adb server on the host also drops a network device after about 10 s of silence, without
   telling the Fire TV.
 - The Fire TV allows one ADB connection at a time and kept holding the dropped one, refusing
