@@ -73,7 +73,7 @@ import struct
 import sys
 import time
 
-VERSION = "1.5.1"
+VERSION = "1.5.2"
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(HERE, "config.json")
@@ -816,6 +816,19 @@ class FireTV:
         return "; ".join("sendevent %s 1 %d 1; sendevent %s 0 0 0; sendevent %s 1 %d 0; sendevent %s 0 0 0"
                          % (d, self.scancodes[n], d, d, self.scancodes[n], d) for n in names)
 
+    async def resolve_toggle(self, names):
+        """Fire OS ignores the power key (KEYCODE_POWER), so a toggle becomes sleep or wake from
+        the device's own state, read fresh. Each further toggle in the batch flips it again."""
+        out = await self.sh("dumpsys power 2>/dev/null | grep -m1 mWakefulness=")
+        awake = "awake" in out.lower() if out else self.state.get("POWER") != "OFF"
+        resolved = []
+        for n in names:
+            if n == "POWERTOGGLE":
+                n = "POWEROFF" if awake else "POWERON"
+                awake = not awake
+            resolved.append(n)
+        return resolved
+
     async def send_keys(self, names):
         """Press keys in order on the remote device when all are mapped, else one input keyevent.
         A failed method steps down (print, then sendevent) and the device is looked up again."""
@@ -981,6 +994,8 @@ class FireTV:
         kind = batch[0][0]
         if kind == "KEY":
             names = [name for _, name in batch]
+            if "POWERTOGGLE" in names:
+                names = await self.resolve_toggle(names)
             if self.sdk >= FOS8_SDK and "SEARCH" in names:
                 await self.fos8_keys(names)
             else:

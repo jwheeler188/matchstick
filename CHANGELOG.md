@@ -21,6 +21,23 @@
   OS, such as the Fire TV Stick 4K Select. They don't use Android's ADB or key handling, so they
   need their own way to connect, send keys and launch apps. Researching that comes first.
 
+## 1.5.2 (unreleased): Power Toggle
+
+Bridge only: profiles unchanged (still version 1.5).
+
+**Bridge**
+- PowerToggle works. Fire OS ignores the power key it sent (Android's KEYCODE_POWER), so the
+  toggle did nothing. Matchstick now reads whether the Fire TV is awake and sends the same sleep
+  or wake key as PowerOff and PowerOn. Found by the device check kit on Fire OS 6 (Fire TV Stick
+  4K, AFTMM).
+
+**Tools**
+- `tools/device_check.py` and `tools/build_devicecheck.sh`: a kit to send to someone testing
+  Matchstick on another Android TV device (such as an NVIDIA Shield). It runs a private copy of
+  the bridge against their device, tries each feature both Matchstick's way and the plain
+  Android way, checks the result automatically where the device can tell, takes a screenshot
+  per step, and packs a report to send back. See `tools/devicecheck/README.txt`.
+
 ## 1.5.1 (2026-10-28): Fire OS 8 status
 
 First test on Fire OS 8 (Fire TV Stick AFTKM, Fire OS 8.1.8.5, Android 11): connecting, keys,
